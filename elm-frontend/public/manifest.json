@@ -1,0 +1,16 @@
+{
+    "name": "Atwood Blog Monitor",
+    "short_name": "Atwood",
+    "description": "Monitor Atwood's blog for new posts",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#f5f8ff",
+    "theme_color": "#f5f8ff",
+    "icons": [
+        {
+            "src": "icon.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        }
+    ]
+} 

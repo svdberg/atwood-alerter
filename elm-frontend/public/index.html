@@ -1,0 +1,82 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Atwood Blog Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f8ff">
+  <link rel="icon" type="image/jpeg" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="manifest" href="manifest.json">
+  <style>body { padding: 0; margin: 0; }</style>
+</head>
+
+<body>
+
+<pre id="elm"></pre>
+
+<script src="elm.js"></script>
+<script>
+	try {
+'use strict';
+
+  const applicationServerKey = 'BEnxJVSWp29XBixAH33uFwYsKxYjDkiXbswbDDWwvCS-Lkx09lXCPSxS55cNPk6tRQDF2uzpJbYFzMeSyKxVRYk'; // Replace with base64 VAPID public key
+
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return new Uint8Array([...rawData].map(c => c.charCodeAt(0)));
+  };
+
+  const registerServiceWorker = async () => {
+    return await navigator.serviceWorker.register('/sw.js');
+  };
+
+  const askPermission = async () => {
+    const permission = await Notification.requestPermission();
+    console.log('Notification permission:', permission);
+	app.ports.pushRegistrationResponse.send(permission);
+  };
+
+  const subscribeToPush = async () => {
+    const reg = await registerServiceWorker();
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(applicationServerKey)
+    });
+    console.log('Push subscription:', JSON.stringify(sub));
+
+    // TODO: Send to your backend via fetch
+    await fetch('https://b3q0v6btng.execute-api.eu-north-1.amazonaws.com/prod/register-subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub)
+    });
+  };
+
+  var app = Elm.Main.init({ node: document.getElementById("elm") });
+
+  app.ports.requestPushRegistration.subscribe(() => {
+    askPermission();
+  });
+
+  app.ports.subscribeToPush.subscribe(() => {
+    subscribeToPush();
+  });
+
+	} catch (e)
+{
+  // display initialization errors (e.g. bad flags, infinite recursion)
+  var header = document.createElement("h1");
+  header.style.fontFamily = "monospace";
+  header.innerText = "Initialization Error";
+  var pre = document.getElementById("elm");
+  document.body.insertBefore(header, pre);
+  pre.innerText = e;
+  throw e;
+}
+</script>
+
+</body>
+</html>

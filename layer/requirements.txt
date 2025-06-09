@@ -1,0 +1,7 @@
+requests
+bs4
+feedparser
+beautifulsoup4
+boto3
+pywebpush==1.14.1
+cryptography>=41.0.0
