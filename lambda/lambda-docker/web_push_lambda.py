@@ -7,11 +7,15 @@ from pywebpush import webpush, WebPushException
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('WebPushSubscriptions')
 cloudwatch = boto3.client('cloudwatch')
+ssm = boto3.client('ssm')
 
 
-VAPID_PUBLIC_KEY = os.environ['VAPID_PUBLIC_KEY']
-VAPID_PRIVATE_KEY = os.environ['VAPID_PRIVATE_KEY']
+def get_secure_param(name):
+    return ssm.get_parameter(Name=name, WithDecryption=True)['Parameter']['Value']
+
+VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY') or get_secure_param("/atwood/vapid_private_key")
 VAPID_SUB = "mailto:svdberg@me.com"
+
 
 def lambda_handler(event, context):
     # You can extract a message from the SNS payload
@@ -37,7 +41,7 @@ def lambda_handler(event, context):
                 title = json_msg.get("title", "Atwood Blog")
                 body = json_msg.get("body", "New post!")
                 url = json_msg.get("url", "https://atwoodknives.blogspot.com/")
-                
+
                 webpush(
                     subscription_info=sub,
                     data=json.dumps({"title": title, "body": body, "url": url}),

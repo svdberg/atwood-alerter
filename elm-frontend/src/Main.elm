@@ -160,7 +160,7 @@ view model =
         , width fill
         , Element.clip
         ]
-        ([ el [ Font.size 24, Font.bold, width fill ] (Element.text "Atwood Blog Monitor")
+        ([ el [ Font.size 24, Font.bold, width fill ] (Element.text "Atwood Sniper!")
          ]
             ++ viewStatus model.status
             ++ [ el [ Font.size 20, Font.bold ] (Element.text "Subscribe to alerts")
@@ -202,12 +202,14 @@ viewStatus remote =
             [ el [ Font.color (rgb255 200 0 0) ] (Element.text err) ]
 
         Success s ->
-            [ paragraph [ width fill ] [ Element.text ("Last checked: " ++ formatAsRssStyle(s.lastChecked)) ]
-            , paragraph [ width fill ] [ Element.text ("Latest post: ") 
-                           , newTabLink [ Font.color (rgb255 0 122 255) ]
-                                 { label = (Element.text s.lastPostTitle), url = s.lastPostUrl }
-                           , Element.text (" (" ++ s.lastPostDate ++ ")")
-                           ]
+            [ column [ Background.color (rgb255 255 255 255), padding 20, Border.rounded 5, spacing 10 ]
+                [ el [ Font.size 24, Font.bold ] (Element.text "🪓 Atwood Blog Monitor")
+                , el [] (Element.text ("📅 Last checked: " ++ formatAsRssStyle(s.lastChecked)))
+                , el [] (Element.text ("🆕 Latest post: "))
+                , newTabLink [ Font.color (rgb255 0 122 255) ]
+                    { label = (Element.text s.lastPostTitle), url = s.lastPostUrl }
+                , el [] (Element.text (" (" ++ s.lastPostDate ++ ")"))
+                ]
             , paragraph [ width fill ] [ Element.text ("Days since last tool release: " ++ diffDatesInDays s.lastChecked s.lastPostDate)]
             , Element.image
                 [ Element.width (px 300)

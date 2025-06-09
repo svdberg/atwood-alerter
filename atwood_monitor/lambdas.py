@@ -107,23 +107,12 @@ def create_register_web_push_lambda(scope: Construct, role, web_push_table) -> l
 
 
 def create_web_push_lambda(scope: Construct, web_push_table, web_notify_topic) -> lambda_.DockerImageFunction:
-    vapid_private_key = ssm.StringParameter.value_for_secure_string_parameter(
-        scope, "/atwood/vapid_private_key"
-    )
-    vapid_public_key = ssm.StringParameter.value_for_string_parameter(
-        scope, "/atwood/vapid_public_key"
-    )
-
     webpush_lambda = lambda_.DockerImageFunction(
         scope, "WebPushLambda",
         code=lambda_.DockerImageCode.from_image_asset(
             "lambda/lambda-docker",
             platform=Platform.LINUX_AMD64
         ),
-        environment={
-            "VAPID_PUBLIC_KEY": vapid_public_key,
-            "VAPID_PRIVATE_KEY": vapid_private_key
-        },
         timeout=Duration.seconds(30)
     )
 
