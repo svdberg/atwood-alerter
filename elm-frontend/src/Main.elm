@@ -11,7 +11,7 @@ import Element.Font as Font
 import Element.Input as Input
 import Task
 import Process
-import DateHelper exposing (diffDatesInDays, formatAsRssStyle)
+import DateHelper exposing (diffDatesInDays, formatAsRssStyle, cutOffTralingZeroes)
 import Html.Styled as Html
 import Html.Styled.Attributes as Attr
 import Html.Styled.Events as Events
@@ -238,7 +238,7 @@ viewStatus remote =
                     [ Font.size 16
                     , Font.color (rgb255 100 116 139)
                     ]
-                    (Element.text ("📅 Last checked: " ++ formatAsRssStyle s.lastChecked))
+                    (Element.text ("📅 Last checked: " ++ cutOffTralingZeroes(formatAsRssStyle s.lastChecked)))
 
                 , el
                     [ Font.size 16
@@ -275,7 +275,7 @@ viewStatus remote =
                         [ Font.size 14
                         , Font.color (rgb255 148 163 184) -- Tailwind slate-400
                         ]
-                        (Element.text ("(" ++ s.lastPostDate ++ ")"))
+                        (Element.text ("(" ++ cutOffTralingZeroes(s.lastPostDate) ++ ")"))
                     ]
                 ]
 

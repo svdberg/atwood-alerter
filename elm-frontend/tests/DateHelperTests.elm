@@ -2,7 +2,7 @@ module DateHelperTests exposing (suite)
 
 import Test exposing (Test, describe, test)
 import Expect
-import DateHelper exposing (diffDatesInDays, formatAsRssStyle)
+import DateHelper exposing (diffDatesInDays, formatAsRssStyle, cutOffTralingZeroes)
 
 
 suite : Test
@@ -53,4 +53,21 @@ suite =
                 in
                 formatAsRssStyle input
                     |> Expect.equal expected
+        , describe "cutOffTralingZeroes"
+            [ test "removes trailing +0000 from date string" <|
+                \_ ->
+                    "2024-03-20 15:30:00 +0000"
+                        |> cutOffTralingZeroes
+                        |> Expect.equal "2024-03-20 15:30:00"
+            , test "handles empty string" <|
+                \_ ->
+                    ""
+                        |> cutOffTralingZeroes
+                        |> Expect.equal ""
+            , test "handles string without +0000" <|
+                \_ ->
+                    "2024-03-20 15:30:00"
+                        |> cutOffTralingZeroes
+                        |> Expect.equal "2024-03-20 15:30:00"
+            ]
         ] 
