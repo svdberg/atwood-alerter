@@ -18,7 +18,8 @@
             "justinmimbs/date": "4.1.0",
             "justinmimbs/time-extra": "1.2.0",
             "mdgriffith/elm-ui": "1.1.8",
-            "rtfeldman/elm-iso8601-date-strings": "1.1.4"
+            "rtfeldman/elm-iso8601-date-strings": "1.1.4",
+            "rtfeldman/elm-css": "18.0.0"
         },
         "indirect": {
             "elm/bytes": "1.0.8",

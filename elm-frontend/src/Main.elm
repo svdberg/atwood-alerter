@@ -12,6 +12,11 @@ import Element.Input as Input
 import Task
 import Process
 import DateHelper exposing (diffDatesInDays, formatAsRssStyle)
+import Css
+import Html.Styled as Html
+import Html.Styled.Attributes as Attr
+import Html.Styled.Events as Events
+import Tailwind.Utilities as Tw
 
 -- MODEL
 
@@ -244,17 +249,8 @@ viewPushSection status =
         [ el [ Font.size 20, Font.bold ] (Element.text "Push Notifications")
         , case status of
             PushIdle ->
-                Input.button
-                    [ Background.color (rgb255 0 122 255)
-                    , Font.color (rgb255 255 255 255)
-                    , Border.rounded 5
-                    , paddingXY 20 10
-                    , width fill
-                    ]
-                    { onPress = Just RequestPushRegistration
-                    , label = Element.text "Enable Push Notifications"
-                    }
-
+                pushButton
+                
             PushRequesting ->
                 el [] (Element.text "Requesting permission...")
 
@@ -267,6 +263,23 @@ viewPushSection status =
             PushFailed msg ->
                 el [ Font.color (rgb255 200 0 0) ] (Element.text ("Push registration failed: " ++ msg))
         ]
+
+pushButton : Element Msg
+pushButton =
+    Html.button
+        [ Events.onClick RequestPushRegistration
+        , Attr.css
+            [ Tw.bg_blue_500
+            , Tw.text_white
+            , Tw.px_4
+            , Tw.py_2
+            , Tw.rounded
+            , Tw.w_full
+            ]
+        ]
+        [ Html.text "Enable Push Notifications" ]
+        |> Html.toUnstyled
+        |> Element.html
 
 
 -- SUBSCRIPTIONS
