@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+# set -e
 
 # Constants
 LAYER_DIR="layer"
@@ -17,11 +17,18 @@ echo "🛠️ Building Lambda layer in Docker..."
 
 cp $LAYER_DIR/$REQUIREMENTS $PWD
 
-docker run --rm -v "$PWD":/var/task $DOCKER_IMAGE bash -c "
-  cd /var/task && yum install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-pip zip > /dev/null &&
-  python${PYTHON_VERSION} -m pip install -r $REQUIREMENTS -t $LAYER_DIR/python &&
-  cd $LAYER_DIR && zip -r ../$OUT_DIR/layer.zip python > /dev/null
-"
+
+docker run -it --rm \
+  -v "$PWD":/var/task \
+  amazonlinux:2023 \
+  bash -c "
+    cd /var/task && \
+    yum install -y python3 python3-pip zip python3-setuptools && \
+    mkdir -p out/layer/python && \
+    pip3 install --no-cache-dir --target out/layer/python beautifulsoup4 requests && \
+    pip3 install --no-cache-dir --target out/layer/python -r /var/task/requirements.txt && \
+    cd out/layer && zip -r ../layer.zip python"
+
 rm $REQUIREMENTS
 
 echo "✅ Layer build complete: $OUT_DIR/layer.zip"
