@@ -316,24 +316,38 @@ viewStatusMsg status =
 
 viewPushSection : PushStatus -> Element Msg
 viewPushSection status =
-    column [ width fill ]
-        [ el [ Font.size 20, Font.bold ] (Element.text "Push Notifications")
-        , case status of
-            PushIdle ->
-                styledButton "Enable Push Notifications" RequestPushRegistration
-                
-            PushRequesting ->
-                el [] (Element.text "Requesting permission...")
+    case status of
+        PushGranted ->
+            none
 
-            PushGranted ->
-                el [] (Element.text "Push notifications enabled!")
+        _ ->
+            column [ width fill ]
+                [ el [ Font.size 20, Font.bold ] (Element.text "Push Notifications")
+                , case status of
+                    PushIdle ->
+                        Input.button
+                            [ Background.color (rgb255 0 122 255)
+                            , Font.color (rgb255 255 255 255)
+                            , Border.rounded 5
+                            , paddingXY 20 10
+                            , width fill
+                            ]
+                            { onPress = Just RequestPushRegistration
+                            , label = Element.text "Enable Push Notifications"
+                            }
 
-            PushDenied ->
-                el [ Font.color (rgb255 200 0 0) ] (Element.text "Push permission denied.")
+                    PushRequesting ->
+                        el [] (Element.text "Requesting permission...")
 
-            PushFailed msg ->
-                el [ Font.color (rgb255 200 0 0) ] (Element.text ("Push registration failed: " ++ msg))
-        ]
+                    PushDenied ->
+                        el [ Font.color (rgb255 200 0 0) ] (Element.text "Push permission denied.")
+
+                    PushFailed msg ->
+                        el [ Font.color (rgb255 200 0 0) ] (Element.text ("Push registration failed: " ++ msg))
+
+                    _ ->
+                        none
+                ]
 
 styledButton : String -> msg -> Element msg
 styledButton label handler =
