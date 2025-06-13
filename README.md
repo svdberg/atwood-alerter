@@ -67,6 +67,14 @@ pip install -r requirements.txt
 cdk deploy
 ```
 
+### Frontend
+
+```bash
+cd elm-frontend
+npm install
+./build.sh  # builds Elm and Tailwind CSS
+```
+
 ---
 
 ## 📂 Project Structure

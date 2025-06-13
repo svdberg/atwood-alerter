@@ -1,5 +1,5 @@
 -- TIME FORMATTING
-module DateHelper exposing (diffDatesInDays, formatAsRssStyle)
+module DateHelper exposing (diffDatesInDays, formatAsRssStyle, cutOffTralingZeroes)
 
 import Date exposing (Date)
 import Regex
@@ -139,6 +139,15 @@ formatAsRssStyle isoStr =
         Err _ ->
             isoStr
 
+cutOffTralingZeroes : String -> String
+cutOffTralingZeroes s =
+    let
+        suffix = " +0000"
+    in
+    if String.endsWith suffix s then
+        String.dropRight (String.length suffix) s
+    else
+        s
 
 pad2 : Int -> String
 pad2 n =
