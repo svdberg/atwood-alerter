@@ -18,7 +18,8 @@ npx --yes elm make src/Main.elm --output=dist/elm.js --optimize
 cp -r public/* dist/
 
 # Build Tailwind CSS
-npx --yes tailwindcss -o dist/tailwind.css --minify
+#npx --yes tailwindcss -o dist/tailwind.css --minify
+npm run build
 
 # Update index.html to use the compiled elm.js
 # sed -i '' 's/<script src="elm.js"><\/script>/<script src="elm.js"><\/script>\n<script>\n  var app = Elm.Main.init({ node: document.getElementById("elm") });\n<\/script>/' dist/index.html
