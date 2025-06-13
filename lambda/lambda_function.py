@@ -1,14 +1,31 @@
 import os
 import boto3
 import feedparser
+import requests
 from datetime import datetime, timezone
 from dynamo import is_new_post, save_post, save_metadata, is_table_empty, post_table_name
 from bs4 import BeautifulSoup
 import json
+import re
+
 
 
 # Constants
 BLOG_FEED_URL = "https://atwoodknives.blogspot.com/feeds/posts/default?alt=rss"
+
+SOLD_PATTERNS = [
+    r"sold\s*out",
+    r"all\s*gone",
+    r"gone\s*in\s*a\s*flash",
+    r"these\s+are\s+sold\s+out",
+    r"thank\s+you",
+]
+
+def is_sold(text: str) -> bool:
+    lines = text.strip().splitlines()
+    last_two = lines[-2:] if len(lines) >= 2 else lines
+    combined = " ".join(line.lower() for line in last_two)
+    return any(re.search(pat, combined) for pat in SOLD_PATTERNS)
 
 # SNS (for future use)
 sns = boto3.client("sns")
@@ -28,13 +45,21 @@ def lambda_handler(event, context):
     if not post_id:
         print("Post has no ID. Skipping.")
         return
+    
+    post_url = newest.link
+    response = requests.get(post_url)
+    soup = BeautifulSoup(response.text, "html.parser")
+    post_body = soup.find("div", class_="post-body")
+    post_text = post_body.get_text(separator="\n").strip() if post_body else ""
+    sold = is_sold(post_text)
 
     post = {
         "post_id": post_id,
         "title": newest.get("title", "No title found"),
         "url": newest.get("link", "No URL found"),
         "published": newest.get("published", datetime.now(timezone.utc).isoformat()),
-        "image_url": extract_image_from_entry(newest)
+        "image_url": extract_image_from_entry(newest),
+        "sold" : sold
     }
 
     if is_table_empty(post_table_name()):

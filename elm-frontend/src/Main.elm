@@ -47,6 +47,7 @@ type alias StatusData =
     , lastPostUrl : String
     , lastPostDate : String
     , lastPostImageUrl : String
+    , sold : Bool
     }
 
 type StatusMsg
@@ -89,12 +90,14 @@ fetchStatus =
 
 statusDecoder : Decoder StatusData
 statusDecoder =
-    Decode.map5 StatusData
+    Decode.map6 StatusData
         (field "last_run_time" string)
         (field "last_seen_post" (field "title" string))
         (field "last_seen_post" (field "url" string))
         (field "last_seen_post" (field "published" string))
         (field "last_seen_post" (field "image_url" string))
+        (field "last_seen_post" (field "sold" Decode.bool))
+
 
 
 -- UPDATE
@@ -271,6 +274,13 @@ viewStatus remote =
                                 (Element.text s.lastPostTitle)
                         , url = s.lastPostUrl
                         }
+                    , el
+                        [ paddingXY 8 4
+                        , Background.color (if s.sold then rgb255 254 226 226 else rgb255 209 250 229)
+                        , Font.color (if s.sold then rgb255 153 27 27 else rgb255 4 120 87)
+                        , Border.rounded 6
+                        ]
+                        (Element.text (if s.sold then "Sold Out" else "Available"))
                     , el
                         [ Font.size 14
                         , Font.color (rgb255 148 163 184) -- Tailwind slate-400

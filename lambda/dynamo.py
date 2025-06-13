@@ -31,7 +31,8 @@ def save_metadata(post: dict):
                 "title": post["title"],
                 "url": post["url"],
                 "image_url": post["image_url"],
-                "published": post["published"]
+                "published": post["published"],
+                "sold":post["sold"],
             },
         }
     )
