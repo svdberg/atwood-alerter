@@ -60,8 +60,10 @@ aws ssm put-parameter --name "/atwood/vapid_public_key" --value "..." --type "St
 # Install dependencies
 pip install -r requirements.txt
 
-# Build Lambda layers (if needed)
-# e.g., pip install feedparser -t out/layer/python
+# Build the Lambda layer
+# (installs deps from layer/requirements.txt using Docker and
+# generates out/layer.zip)
+./build-layer-with-docker.sh
 
 # Deploy the stack
 cdk deploy
