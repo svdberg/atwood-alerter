@@ -147,11 +147,11 @@ jobs:
         with:
           name: backend-build
           path: |
-            out/layer.zip
             lambda/
             atwood_monitor/
             app.py
             cdk.json
+            out/
             requirements.txt
       
       - name: Upload frontend artifacts
