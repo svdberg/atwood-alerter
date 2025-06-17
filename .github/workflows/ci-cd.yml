@@ -121,7 +121,7 @@ jobs:
       - name: Install frontend dependencies
         if: matrix.component == 'frontend'
         working-directory: elm-frontend
-        run: npm ci
+        run: npm install
       
       - name: Build Elm frontend
         if: matrix.component == 'frontend'
