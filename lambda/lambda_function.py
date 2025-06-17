@@ -3,12 +3,12 @@ import boto3
 import feedparser
 import requests
 from datetime import datetime, timezone
-from dynamo import is_new_post, save_post, save_metadata, is_table_empty, post_table_name
+from dynamo import (
+    is_new_post, save_post, save_metadata, is_table_empty, post_table_name
+)
 from bs4 import BeautifulSoup
 import json
 import re
-
-
 
 # Constants
 BLOG_FEED_URL = "https://atwoodknives.blogspot.com/feeds/posts/default?alt=rss"
@@ -45,7 +45,6 @@ def lambda_handler(event, context):
     if not post_id:
         print("Post has no ID. Skipping.")
         return
-    
     post_url = newest.link
     response = requests.get(post_url)
     soup = BeautifulSoup(response.text, "html.parser")
@@ -57,9 +56,11 @@ def lambda_handler(event, context):
         "post_id": post_id,
         "title": newest.get("title", "No title found"),
         "url": newest.get("link", "No URL found"),
-        "published": newest.get("published", datetime.now(timezone.utc).isoformat()),
+        "published": newest.get(
+            "published", datetime.now(timezone.utc).isoformat()
+        ),
         "image_url": extract_image_from_entry(newest),
-        "sold" : sold
+        "sold": sold
     }
 
     if is_table_empty(post_table_name()):

@@ -39,7 +39,7 @@ def setup_frontend(scope: Construct, certificate_arn: str, webpush_lambda, env_c
     # 3. Hosted Zone and TLS Cert
     base_domain = env_config.domain_name.split('.')[-2:]  # Get base domain (atwood-sniper.com)
     base_domain_name = '.'.join(base_domain)
-    
+
     hosted_zone = route53.HostedZone.from_lookup(scope, "HostedZone", domain_name=base_domain_name)
 
     certificate = acm.Certificate.from_certificate_arn(

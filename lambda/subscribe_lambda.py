@@ -1,7 +1,6 @@
 import os
 import boto3
 import json
-from boto3.dynamodb.conditions import Key
 
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
@@ -27,7 +26,13 @@ def lambda_handler(event, context):
             Endpoint=email
         )
 
-        return {"statusCode": 200, "headers": { "Access-Control-Allow-Origin": "*" }, "body": json.dumps({"message": "Subscription requested. Check your email to confirm."})}
+        return {
+            "statusCode": 200,
+            "headers": {"Access-Control-Allow-Origin": "*"},
+            "body": json.dumps({
+                "message": "Subscription requested. Check your email to confirm."
+            })
+        }
 
     except Exception as e:
         return {"statusCode": 500, "body": str(e)}

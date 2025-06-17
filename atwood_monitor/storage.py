@@ -9,7 +9,7 @@ from .environments import EnvironmentConfig
 
 def create_tables(scope: Construct, env_config: EnvironmentConfig):
     """Create DynamoDB tables and SNS topics with environment-specific naming."""
-    
+
     posts_table = dynamodb.Table(
         scope, "PostsTable",
         partition_key=dynamodb.Attribute(name="post_id", type=dynamodb.AttributeType.STRING),

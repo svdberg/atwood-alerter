@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 @dataclass
 class EnvironmentConfig:
     """Configuration for different deployment environments."""
-    
+
     name: str
     account: str
     region: str
@@ -15,7 +15,7 @@ class EnvironmentConfig:
     monitoring_enabled: bool = True
     debug_mode: bool = False
     scraper_schedule: str = "rate(1 minute)"  # Default scraping frequency
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary for CDK context."""
         return {
@@ -28,12 +28,12 @@ class EnvironmentConfig:
             'debug_mode': self.debug_mode,
             'scraper_schedule': self.scraper_schedule
         }
-    
+
     @property
     def stack_name_prefix(self) -> str:
         """Generate stack name prefix based on environment."""
         return f"AtwoodMonitor-{self.name.title()}"
-    
+
     @property
     def resource_name_prefix(self) -> str:
         """Generate resource name prefix based on environment."""
@@ -43,19 +43,19 @@ class EnvironmentConfig:
 def get_environment_config(env_name: Optional[str] = None) -> EnvironmentConfig:
     """
     Get environment configuration based on environment name or CDK context.
-    
+
     Args:
         env_name: Environment name override. If not provided, uses ENVIRONMENT env var.
-    
+
     Returns:
         EnvironmentConfig: Configuration for the specified environment.
     """
     if env_name is None:
         env_name = os.environ.get('ENVIRONMENT', 'staging')  # Default to staging for safety
-    
+
     # Account ID
     account_id = "242650470527"
-    
+
     if env_name == 'staging':
         return EnvironmentConfig(
             name='staging',

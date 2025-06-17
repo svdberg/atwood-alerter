@@ -10,8 +10,8 @@ from .environments import EnvironmentConfig
 
 def setup_dashboard(scope: Construct, env_config: EnvironmentConfig):
     dashboard = cw.Dashboard(
-        scope, 
-        "WebPushDashboard", 
+        scope,
+        "WebPushDashboard",
         dashboard_name=f"{env_config.resource_name_prefix}-dashboard"
     )
 
