@@ -167,7 +167,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: elm-frontend/dist/
+          path: elm-frontend/
 
   # Infrastructure Validation
   infrastructure-validation:
@@ -181,6 +181,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-build
+      
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+      
+      - name: Verify frontend structure
+        run: |
+          echo "Checking frontend directory structure..."
+          ls -la elm-frontend/ || echo "elm-frontend/ directory not found"
+          ls -la elm-frontend/dist/ || echo "elm-frontend/dist/ directory not found"
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -223,7 +234,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
-          path: elm-frontend/dist/
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -320,7 +330,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
-          path: elm-frontend/dist/
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
