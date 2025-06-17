@@ -3,5 +3,5 @@ bs4
 requests
 beautifulsoup4
 feedparser
-pywebpush==1.14.0
+pywebpush==2.0.3
 cryptography>=41.0.0
