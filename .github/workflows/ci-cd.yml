@@ -88,8 +88,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: elm-frontend/package-lock.json
       
       # Backend Build and Test
       - name: Install Python dependencies
@@ -101,7 +99,7 @@ jobs:
       - name: Build Lambda Layer
         if: matrix.component == 'backend'
         run: |
-          build-layer-with-docker.sh
+          ./build-layer-with-docker.sh
       
       - name: Run Python Tests
         if: matrix.component == 'backend'
