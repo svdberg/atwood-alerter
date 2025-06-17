@@ -196,6 +196,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
+          path: elm-frontend
       
       - name: Verify frontend structure
         run: |
@@ -206,10 +207,7 @@ jobs:
           ls -la elm-frontend/ || echo "elm-frontend/ directory not found"
           echo ""
           echo "Checking for elm-frontend/dist directory..."
-          ls -la elm-frontend/dist/ || echo "elm-frontend/dist/ directory not found (will skip frontend deployment during synthesis)"
-          echo ""
-          echo "Find all dist directories..."
-          find . -name "dist" -type d || echo "No dist directories found"
+          ls -la elm-frontend/dist/ || echo "elm-frontend/dist/ directory not found"
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -252,6 +250,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
+          path: elm-frontend
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -348,6 +347,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
+          path: elm-frontend
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
