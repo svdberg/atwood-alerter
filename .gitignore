@@ -1,5 +1,4 @@
 *.swp
-package-lock.json
 __pycache__
 .pytest_cache
 .venv
@@ -12,3 +11,7 @@ __pycache__
 .cdk.staging
 cdk.out/
 cdk.context.json
+
+# Elm generated files
+elm-frontend/elm-stuff/
+elm-frontend/node_modules/

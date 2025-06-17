@@ -1,26 +1,14 @@
 from aws_cdk import (
     Stack, Duration,
-    aws_lambda as lambda_,
-    aws_dynamodb as dynamodb,
     aws_events as events,
     aws_events_targets as targets,
-    aws_iam as iam,
-    aws_apigateway as apigateway,
-    aws_sns as sns,
-    aws_sns_subscriptions as subscriptions,
-    aws_s3 as s3,
-    aws_s3_deployment as s3deploy,
-    aws_cloudfront as cloudfront,
-    aws_cloudfront_origins as origins,
-    aws_cloudwatch as cw,
-    aws_route53 as route53,
-    aws_route53_targets as route53_targets,
-    aws_certificatemanager as acm,
-    RemovalPolicy, CfnOutput,
+    CfnOutput,
 )
 from constructs import Construct
-from aws_cdk.aws_ecr_assets import Platform
 
+from .api_gateway import setup_api_gateway
+from .environments import EnvironmentConfig
+from .frontend import setup_frontend
 from .lambdas import (
     create_lambda_layer,
     create_lambda_role,
@@ -30,18 +18,16 @@ from .lambdas import (
     create_web_push_lambda,
     create_register_web_push_lambda
 )
-from .storage import create_tables
-from .frontend import setup_frontend
-from .api_gateway import setup_api_gateway
 from .monitoring import setup_dashboard
-from .environments import EnvironmentConfig
+from .storage import create_tables
 
 
 class AtwoodMonitorStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, certificate_arn: str, 
+    def __init__(self, scope: Construct, construct_id: str, 
+                 certificate_arn: str, 
                  env_config: EnvironmentConfig, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
-        
+
         self.env_config = env_config
 
         # DynamoDB and SNS setup
@@ -53,15 +39,18 @@ class AtwoodMonitorStack(Stack):
         lambda_layer = create_lambda_layer(self, env_config)
         lambda_role = create_lambda_role(self, env_config)
         scraper_lambda = create_scraper_lambda(
-            self, lambda_role, lambda_layer, posts_table, users_table, notify_topic, env_config
+            self, lambda_role, lambda_layer, posts_table, users_table, 
+            notify_topic, env_config
         )
         status_lambda = create_status_lambda(
             self, lambda_role, lambda_layer, posts_table, env_config
         )
         subscribe_lambda = create_subscribe_lambda(
-            self, lambda_role, lambda_layer, users_table, notify_topic, env_config
+            self, lambda_role, lambda_layer, users_table, notify_topic, 
+            env_config
         )
-        webpush_lambda = create_web_push_lambda(self, web_push_table, web_notify_topic, env_config)
+        webpush_lambda = create_web_push_lambda(self, web_push_table, 
+                                                web_notify_topic, env_config)
         register_web_push_lambda = create_register_web_push_lambda(
             self, lambda_role, web_push_table, env_config
         )
@@ -94,13 +83,13 @@ class AtwoodMonitorStack(Stack):
         CfnOutput(self, "DomainName", value=env_config.domain_name)
         CfnOutput(self, "ApiEndpoint", value=api.url)
         CfnOutput(self, "StackStatus", value="Deployment completed")
-    
+
     def _create_schedule(self, schedule_expression: str) -> events.Schedule:
         """Create EventBridge schedule from rate expression."""
         if schedule_expression.startswith("rate("):
             # Extract the rate value
             rate_part = schedule_expression[5:-1]  # Remove "rate(" and ")"
-            
+
             if "minute" in rate_part:
                 minutes = int(rate_part.split()[0])
                 return events.Schedule.rate(Duration.minutes(minutes))
@@ -110,6 +99,6 @@ class AtwoodMonitorStack(Stack):
             elif "day" in rate_part:
                 days = int(rate_part.split()[0])
                 return events.Schedule.rate(Duration.days(days))
-        
+
         # If it's a cron expression, use it directly
         return events.Schedule.expression(schedule_expression)

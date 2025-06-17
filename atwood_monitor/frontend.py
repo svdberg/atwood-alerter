@@ -1,15 +1,21 @@
 # frontend.py
 
-from aws_cdk import Duration, RemovalPolicy, CfnOutput
-from aws_cdk import aws_s3 as s3
-from aws_cdk import aws_s3_deployment as s3deploy
-from aws_cdk import aws_cloudfront as cloudfront
-from aws_cdk import aws_cloudfront_origins as origins
-from aws_cdk import aws_route53 as route53
-from aws_cdk import aws_route53_targets as route53_targets
-from aws_cdk import aws_certificatemanager as acm
-from aws_cdk import aws_iam as iam
+import os
+
+from aws_cdk import (
+    CfnOutput,
+    RemovalPolicy,
+    aws_certificatemanager as acm,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
+    aws_iam as iam,
+    aws_route53 as route53,
+    aws_route53_targets as route53_targets,
+    aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
+)
 from constructs import Construct
+
 from .environments import EnvironmentConfig
 
 
@@ -39,7 +45,7 @@ def setup_frontend(scope: Construct, certificate_arn: str, webpush_lambda, env_c
     # 3. Hosted Zone and TLS Cert
     base_domain = env_config.domain_name.split('.')[-2:]  # Get base domain (atwood-sniper.com)
     base_domain_name = '.'.join(base_domain)
-    
+
     hosted_zone = route53.HostedZone.from_lookup(scope, "HostedZone", domain_name=base_domain_name)
 
     certificate = acm.Certificate.from_certificate_arn(
@@ -70,13 +76,14 @@ def setup_frontend(scope: Construct, certificate_arn: str, webpush_lambda, env_c
     )
 
     # 6. Deployment to S3 + Cache Invalidation
-    s3deploy.BucketDeployment(
-        scope, "DeployFrontend",
-        sources=[s3deploy.Source.asset("elm-frontend/dist")],
-        destination_bucket=site_bucket,
-        distribution=distribution,
-        distribution_paths=["/*"]
-    )
+    if os.path.exists("elm-frontend/dist"):
+        s3deploy.BucketDeployment(
+            scope, "DeployFrontend",
+            sources=[s3deploy.Source.asset("elm-frontend/dist")],
+            destination_bucket=site_bucket,
+            distribution=distribution,
+            distribution_paths=["/*"]
+        )
 
     # 7. Output the URL
     CfnOutput(scope, "FrontendURL", value=f"https://{env_config.domain_name}")

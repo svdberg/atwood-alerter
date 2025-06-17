@@ -1,7 +1,7 @@
-import boto3
 import os
 from datetime import datetime
-from boto3.dynamodb.conditions import Key
+
+import boto3
 
 # DynamoDB initialization
 dynamodb = boto3.resource("dynamodb")
@@ -20,8 +20,6 @@ def is_new_post(post_id: str) -> bool:
 
 def save_post(post: dict):
     posts_table.put_item(Item=post)
-
-
 def save_metadata(post: dict):
     posts_table.put_item(
         Item={
@@ -32,7 +30,7 @@ def save_metadata(post: dict):
                 "url": post["url"],
                 "image_url": post["image_url"],
                 "published": post["published"],
-                "sold":post["sold"],
+                "sold": post["sold"],
             },
         }
     )

@@ -1,8 +1,8 @@
+import hashlib
+import importlib
+import json
 import os
 import sys
-import json
-import importlib
-import hashlib
 
 import boto3
 from moto import mock_aws
@@ -25,7 +25,9 @@ def test_subscribe_lambda_valid_email():
     ddb.create_table(
         TableName='Users',
         KeySchema=[{'AttributeName': 'user_id', 'KeyType': 'HASH'}],
-        AttributeDefinitions=[{'AttributeName': 'user_id', 'AttributeType': 'S'}],
+        AttributeDefinitions=[
+            {'AttributeName': 'user_id', 'AttributeType': 'S'}
+        ],
         BillingMode='PAY_PER_REQUEST'
     )
     sns = boto3.client('sns', region_name='us-east-1')
@@ -51,7 +53,9 @@ def test_subscribe_lambda_invalid_email():
     ddb.create_table(
         TableName='Users',
         KeySchema=[{'AttributeName': 'user_id', 'KeyType': 'HASH'}],
-        AttributeDefinitions=[{'AttributeName': 'user_id', 'AttributeType': 'S'}],
+        AttributeDefinitions=[
+            {'AttributeName': 'user_id', 'AttributeType': 'S'}
+        ],
         BillingMode='PAY_PER_REQUEST'
     )
     sns = boto3.client('sns', region_name='us-east-1')
@@ -73,7 +77,9 @@ def test_subscribe_web_lambda_registers_subscription():
     ddb.create_table(
         TableName='WebPush',
         KeySchema=[{'AttributeName': 'subscription_id', 'KeyType': 'HASH'}],
-        AttributeDefinitions=[{'AttributeName': 'subscription_id', 'AttributeType': 'S'}],
+        AttributeDefinitions=[
+            {'AttributeName': 'subscription_id', 'AttributeType': 'S'}
+        ],
         BillingMode='PAY_PER_REQUEST'
     )
 
@@ -87,7 +93,9 @@ def test_subscribe_web_lambda_registers_subscription():
 
     assert result['statusCode'] == 200
     sub_id = hashlib.sha256(json.dumps(body).encode()).hexdigest()
-    table = boto3.resource('dynamodb', region_name='us-east-1').Table('WebPush')
+    table = boto3.resource(
+        'dynamodb', region_name='us-east-1'
+    ).Table('WebPush')
     assert 'Item' in table.get_item(Key={'subscription_id': sub_id})
 
 @mock_aws
@@ -96,14 +104,20 @@ def test_status_lambda_returns_metadata():
     ddb.create_table(
         TableName='Posts',
         KeySchema=[{'AttributeName': 'post_id', 'KeyType': 'HASH'}],
-        AttributeDefinitions=[{'AttributeName': 'post_id', 'AttributeType': 'S'}],
+        AttributeDefinitions=[
+            {'AttributeName': 'post_id', 'AttributeType': 'S'}
+        ],
         BillingMode='PAY_PER_REQUEST'
     )
 
     os.environ['POSTS_TABLE'] = 'Posts'
 
     table = boto3.resource('dynamodb', region_name='us-east-1').Table('Posts')
-    meta = {'post_id': '__meta__', 'last_run_time': '123', 'last_seen_post': {'title': 'My Post'}}
+    meta = {
+        'post_id': '__meta__',
+        'last_run_time': '123',
+        'last_seen_post': {'title': 'My Post'}
+    }
     table.put_item(Item=meta)
 
     status_lambda = reload_module('status_lambda')
@@ -116,19 +130,22 @@ def test_status_lambda_returns_metadata():
     assert body['last_seen_post']['title'] == 'My Post'
 
 @mock_aws
-
 def test_extract_image_from_entry():
     ddb = boto3.client('dynamodb', region_name='us-east-1')
     ddb.create_table(
         TableName='Posts',
         KeySchema=[{'AttributeName': 'post_id', 'KeyType': 'HASH'}],
-        AttributeDefinitions=[{'AttributeName': 'post_id', 'AttributeType': 'S'}],
+        AttributeDefinitions=[
+            {'AttributeName': 'post_id', 'AttributeType': 'S'}
+        ],
         BillingMode='PAY_PER_REQUEST'
     )
     ddb.create_table(
         TableName='Users',
         KeySchema=[{'AttributeName': 'user_id', 'KeyType': 'HASH'}],
-        AttributeDefinitions=[{'AttributeName': 'user_id', 'AttributeType': 'S'}],
+        AttributeDefinitions=[
+            {'AttributeName': 'user_id', 'AttributeType': 'S'}
+        ],
         BillingMode='PAY_PER_REQUEST'
     )
     sns = boto3.client('sns', region_name='us-east-1')
@@ -145,5 +162,7 @@ def test_extract_image_from_entry():
         __getattr__ = dict.get
 
     entry = Entry(media_content=[{'url': 'http://img.test/img.jpg'}])
-    assert lambda_function.extract_image_from_entry(entry) == 'http://img.test/img.jpg'
-
+    assert (
+        lambda_function.extract_image_from_entry(entry) ==
+        'http://img.test/img.jpg'
+    )

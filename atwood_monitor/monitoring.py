@@ -2,16 +2,17 @@
 
 from aws_cdk import (
     Duration,
-    aws_cloudwatch as cw
+    aws_cloudwatch as cw,
 )
 from constructs import Construct
+
 from .environments import EnvironmentConfig
 
 
 def setup_dashboard(scope: Construct, env_config: EnvironmentConfig):
     dashboard = cw.Dashboard(
-        scope, 
-        "WebPushDashboard", 
+        scope,
+        "WebPushDashboard",
         dashboard_name=f"{env_config.resource_name_prefix}-dashboard"
     )
 

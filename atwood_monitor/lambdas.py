@@ -1,16 +1,15 @@
+import os
+
 from aws_cdk import (
     Duration,
-    aws_lambda as lambda_,
     aws_iam as iam,
+    aws_lambda as lambda_,
     aws_sns as sns,
-    aws_dynamodb as dynamodb
+    aws_sns_subscriptions as subscriptions,
 )
-
-from constructs import Construct
 from aws_cdk.aws_ecr_assets import Platform
-from aws_cdk import aws_sns_subscriptions as subscriptions
-import os
-from aws_cdk import aws_ssm as ssm
+from constructs import Construct
+
 from .environments import EnvironmentConfig
 
 

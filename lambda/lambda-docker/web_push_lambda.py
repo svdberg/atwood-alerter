@@ -1,8 +1,9 @@
 import json
-import boto3
 import os
 from urllib.parse import urlparse
-from pywebpush import webpush, WebPushException
+
+import boto3
+from pywebpush import WebPushException, webpush
 
 # Get environment-specific configuration
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'production')
@@ -23,7 +24,7 @@ def get_vapid_private_key():
     # First try environment variable (for CI/CD)
     if 'VAPID_PRIVATE_KEY' in os.environ:
         return os.environ['VAPID_PRIVATE_KEY']
-    
+
     # Then try environment-specific SSM parameter
     if ENVIRONMENT == 'staging':
         return get_secure_param("/atwood/staging/vapid_private_key")
@@ -82,7 +83,7 @@ def lambda_handler(event, context):
             except WebPushException as ex:
                 status_code = getattr(ex.response, "status_code", None)
                 print(f"Push failed for {item['subscription_id']}: {ex}")
-                
+
                 cloudwatch.put_metric_data(
                     Namespace='WebPushNotifications',
                     MetricData=[
