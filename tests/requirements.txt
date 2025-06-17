@@ -1,4 +1,8 @@
+pytest>=7.4.0
+pytest-cov>=4.1.0
+requests>=2.31.0
 boto3
-moto
+moto>=4.2.0
 feedparser
 beautifulsoup4
+mypy>=1.5.0

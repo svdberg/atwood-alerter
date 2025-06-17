@@ -6,5 +6,13 @@
   "hosted-zone:account=242650470527:domainName=atwood-sniper.com:region=us-east-1": {
     "Id": "/hostedzone/Z0112098VYRQEFJAGVE2",
     "Name": "atwood-sniper.com."
+  },
+  "hosted-zone:account=242650470527:domainName=atwood-sniper.com:region=us-east-2": {
+    "Id": "/hostedzone/Z0112098VYRQEFJAGVE2",
+    "Name": "atwood-sniper.com."
+  },
+  "hosted-zone:account=242650470527:domainName=atwood-sniper.com:region=us-west-2": {
+    "Id": "/hostedzone/Z0112098VYRQEFJAGVE2",
+    "Name": "atwood-sniper.com."
   }
 }

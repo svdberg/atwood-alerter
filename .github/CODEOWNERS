@@ -1,0 +1,20 @@
+# Code owners for Atwood Monitor project
+# These owners will be automatically requested for review when PRs are opened
+
+# Default owners for all files
+* @sander.vandenberg
+
+# Infrastructure and deployment files require careful review
+app.py @sander.vandenberg
+atwood_monitor/ @sander.vandenberg
+*.yml @sander.vandenberg
+*.yaml @sander.vandenberg
+cdk.json @sander.vandenberg
+requirements.txt @sander.vandenberg
+
+# Security-sensitive files
+.github/workflows/ @sander.vandenberg
+scripts/ @sander.vandenberg
+
+# Frontend requires frontend expertise
+elm-frontend/ @sander.vandenberg

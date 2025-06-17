@@ -1,0 +1,386 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION_STAGING: us-west-2
+  AWS_REGION_PRODUCTION: eu-north-1
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  # Security and Code Quality
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  code-quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          pip install flake8 black isort mypy
+          pip install -r requirements.txt
+      
+      - name: Run linting
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=out,cdk.out,elm-frontend/node_modules
+          black --check . --exclude="(out|cdk\.out|elm-frontend/node_modules)"
+          isort --check-only . --skip-glob="out/*" --skip-glob="cdk.out/*" --skip-glob="elm-frontend/node_modules/*"
+      
+      - name: Type checking
+        run: mypy lambda/ atwood_monitor/ --ignore-missing-imports
+
+  # Build and Test
+  build-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: [security-scan, code-quality]
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python (Backend)
+        if: matrix.component == 'backend'
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Set up Node.js (Frontend)
+        if: matrix.component == 'frontend'
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: elm-frontend/package-lock.json
+      
+      # Backend Build and Test
+      - name: Install Python dependencies
+        if: matrix.component == 'backend'
+        run: |
+          pip install -r requirements.txt
+          pip install -r tests/requirements.txt
+      
+      - name: Build Lambda Layer
+        if: matrix.component == 'backend'
+        run: |
+          docker run --rm \
+            -v $PWD:/var/task \
+            amazonlinux:2023 \
+            bash -c "
+              cd /var/task && \
+              yum install -y python3 python3-pip zip && \
+              mkdir -p out/layer/python && \
+              pip3 install --target out/layer/python -r layer/requirements.txt && \
+              cd out/layer && zip -r ../layer.zip python
+            "
+      
+      - name: Run Python Tests
+        if: matrix.component == 'backend'
+        run: |
+          python -m pytest tests/ -v --cov=lambda --cov-report=xml --cov-report=term-missing
+      
+      - name: Upload coverage reports
+        if: matrix.component == 'backend'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: backend
+
+      # Frontend Build and Test
+      - name: Install Elm
+        if: matrix.component == 'frontend'
+        run: npm install -g elm elm-test
+      
+      - name: Install frontend dependencies
+        if: matrix.component == 'frontend'
+        working-directory: elm-frontend
+        run: npm ci
+      
+      - name: Build Elm frontend
+        if: matrix.component == 'frontend'
+        working-directory: elm-frontend
+        run: |
+          chmod +x build.sh
+          ./build.sh
+      
+      - name: Test Elm frontend
+        if: matrix.component == 'frontend'
+        working-directory: elm-frontend
+        run: |
+          if [ -f elm.json ] && grep -q '"test-dependencies"' elm.json; then
+            elm-test
+          else
+            echo "No Elm tests configured, skipping"
+          fi
+      
+      # Upload artifacts
+      - name: Upload backend artifacts
+        if: matrix.component == 'backend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-build
+          path: |
+            out/layer.zip
+            lambda/
+            atwood_monitor/
+            app.py
+            cdk.json
+            requirements.txt
+      
+      - name: Upload frontend artifacts
+        if: matrix.component == 'frontend'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: elm-frontend/dist/
+
+  # Infrastructure Validation
+  infrastructure-validation:
+    name: CDK Validation
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install CDK
+        run: npm install -g aws-cdk
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: CDK Synth Staging
+        run: |
+          export ENVIRONMENT=staging
+          cdk synth --all
+      
+      - name: CDK Synth Production
+        run: |
+          export ENVIRONMENT=production
+          cdk synth --all
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: infrastructure-validation
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+      
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: elm-frontend/dist/
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws-region: ${{ env.AWS_REGION_STAGING }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install CDK
+        run: npm install -g aws-cdk
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Deploy to staging
+        run: |
+          export ENVIRONMENT=staging
+          export AWS_DEFAULT_REGION=${{ env.AWS_REGION_STAGING }}
+          cdk deploy --all --require-approval never \
+            --outputs-file staging-outputs.json
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+      
+      - name: Upload staging outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-outputs
+          path: staging-outputs.json
+
+  # Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download staging outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: staging-outputs
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install test dependencies
+        run: |
+          pip install requests pytest
+      
+      - name: Extract API endpoint from outputs
+        run: |
+          API_ENDPOINT=$(python -c "
+          import json
+          with open('staging-outputs.json', 'r') as f:
+              outputs = json.load(f)
+              stack_key = next(k for k in outputs.keys() if 'Staging' in k)
+              print(outputs[stack_key]['ApiEndpoint'])
+          ")
+          echo "STAGING_API_ENDPOINT=$API_ENDPOINT" >> $GITHUB_ENV
+      
+      - name: Run integration tests
+        run: |
+          export ENVIRONMENT=staging
+          export API_ENDPOINT=${{ env.STAGING_API_ENDPOINT }}
+          python scripts/verify-deployment.py
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-build
+      
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: elm-frontend/dist/
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: ${{ env.AWS_REGION_PRODUCTION }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install CDK
+        run: npm install -g aws-cdk
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Deploy to production
+        run: |
+          export ENVIRONMENT=production
+          export AWS_DEFAULT_REGION=${{ env.AWS_REGION_PRODUCTION }}
+          cdk deploy --all --require-approval never \
+            --outputs-file production-outputs.json
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+      
+      - name: Post-deployment verification
+        run: |
+          export ENVIRONMENT=production
+          API_ENDPOINT=$(python -c "
+          import json
+          with open('production-outputs.json', 'r') as f:
+              outputs = json.load(f)
+              stack_key = next(k for k in outputs.keys() if 'Production' in k)
+              print(outputs[stack_key]['ApiEndpoint'])
+          ")
+          export API_ENDPOINT=$API_ENDPOINT
+          python scripts/verify-deployment.py
+
+  # Cleanup on failure
+  cleanup-on-failure:
+    name: Cleanup Failed Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production]
+    if: failure() && (needs.deploy-staging.result == 'failure' || needs.deploy-production.result == 'failure')
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Cleanup staging on failure
+        if: needs.deploy-staging.result == 'failure'
+        run: |
+          echo "Staging deployment failed - cleanup would run here"
+          # Add cleanup logic if needed
+      
+      - name: Rollback production on failure  
+        if: needs.deploy-production.result == 'failure'
+        run: |
+          echo "Production deployment failed - rollback would run here"
+          # Add rollback logic if needed

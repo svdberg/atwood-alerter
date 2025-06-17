@@ -4,8 +4,12 @@ import os
 from urllib.parse import urlparse
 from pywebpush import webpush, WebPushException
 
+# Get environment-specific configuration
+ENVIRONMENT = os.environ.get('ENVIRONMENT', 'production')
+WEB_PUSH_TABLE = os.environ.get('WEB_PUSH_TABLE', 'WebPushSubscriptions')
+
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('WebPushSubscriptions')
+table = dynamodb.Table(WEB_PUSH_TABLE)
 cloudwatch = boto3.client('cloudwatch')
 ssm = boto3.client('ssm')
 
@@ -13,7 +17,21 @@ ssm = boto3.client('ssm')
 def get_secure_param(name):
     return ssm.get_parameter(Name=name, WithDecryption=True)['Parameter']['Value']
 
-VAPID_PRIVATE_KEY = os.environ.get('VAPID_PRIVATE_KEY') or get_secure_param("/atwood/vapid_private_key")
+
+def get_vapid_private_key():
+    """Get VAPID private key from environment variable or SSM Parameter Store."""
+    # First try environment variable (for CI/CD)
+    if 'VAPID_PRIVATE_KEY' in os.environ:
+        return os.environ['VAPID_PRIVATE_KEY']
+    
+    # Then try environment-specific SSM parameter
+    if ENVIRONMENT == 'staging':
+        return get_secure_param("/atwood/staging/vapid_private_key")
+    else:
+        return get_secure_param("/atwood/vapid_private_key")
+
+
+VAPID_PRIVATE_KEY = get_vapid_private_key()
 VAPID_SUB = "mailto:svdberg@me.com"
 
 
@@ -55,7 +73,7 @@ def lambda_handler(event, context):
                     MetricData=[
                         {
                             'MetricName': 'PushSuccess',
-                            'Dimensions': [{'Name': 'Environment', 'Value': 'Prod'}],
+                            'Dimensions': [{'Name': 'Environment', 'Value': ENVIRONMENT.title()}],
                             'Unit': 'Count',
                             'Value': 1,
                         }
@@ -70,7 +88,7 @@ def lambda_handler(event, context):
                     MetricData=[
                         {
                             'MetricName': 'PushFailure',
-                            'Dimensions': [{'Name': 'Environment', 'Value': 'Prod'}],
+                            'Dimensions': [{'Name': 'Environment', 'Value': ENVIRONMENT.title()}],
                             'Unit': 'Count',
                             'Value': 1,
                         }

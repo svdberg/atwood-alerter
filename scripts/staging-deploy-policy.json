@@ -1,0 +1,38 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CDKDeploymentPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:*",
+                "s3:*",
+                "iam:*",
+                "lambda:*",
+                "dynamodb:*",
+                "sns:*",
+                "events:*",
+                "apigateway:*",
+                "cloudfront:*",
+                "route53:*",
+                "acm:*",
+                "logs:*",
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:GetParametersByPath",
+                "ecr:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "CDKBootstrapPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "sts:AssumeRole"
+            ],
+            "Resource": [
+                "arn:aws:iam::242650470527:role/cdk-*"
+            ]
+        }
+    ]
+}

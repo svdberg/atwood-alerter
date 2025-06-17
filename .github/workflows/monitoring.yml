@@ -1,0 +1,332 @@
+name: Monitoring and Alerts
+
+on:
+  schedule:
+    # Check every 15 minutes during business hours (9 AM - 6 PM UTC, Mon-Fri)
+    - cron: '*/15 9-18 * * 1-5'
+    # Check every hour outside business hours
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  STAGING_DOMAIN: staging.atwood-sniper.com
+  PRODUCTION_DOMAIN: atwood-sniper.com
+
+jobs:
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [staging, production]
+        include:
+          - environment: staging
+            domain: staging.atwood-sniper.com
+            region: us-west-2
+            aws_access_key: AWS_ACCESS_KEY_ID_STAGING
+            aws_secret_key: AWS_SECRET_ACCESS_KEY_STAGING
+          - environment: production
+            domain: atwood-sniper.com
+            region: eu-north-1
+            aws_access_key: AWS_ACCESS_KEY_ID_PROD
+            aws_secret_key: AWS_SECRET_ACCESS_KEY_PROD
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets[matrix.aws_access_key] }}
+          aws-secret-access-key: ${{ secrets[matrix.aws_secret_key] }}
+          aws-region: ${{ matrix.region }}
+      
+      - name: Get API endpoint
+        id: get-endpoint
+        run: |
+          STACK_NAME="AtwoodMonitor-$(echo ${{ matrix.environment }} | sed 's/./\U&/')-Main"
+          API_ENDPOINT=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+          
+          if [ -z "$API_ENDPOINT" ]; then
+            echo "❌ Could not retrieve API endpoint for ${{ matrix.environment }}"
+            echo "endpoint=" >> $GITHUB_OUTPUT
+          else
+            echo "endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Check API health
+        if: steps.get-endpoint.outputs.endpoint != ''
+        run: |
+          API_ENDPOINT="${{ steps.get-endpoint.outputs.endpoint }}"
+          echo "🔍 Checking API health: $API_ENDPOINT"
+          
+          # Check status endpoint
+          HTTP_CODE=$(curl -s -o response.json -w "%{http_code}" "$API_ENDPOINT/status" || echo "000")
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ API health check passed ($HTTP_CODE)"
+            echo "API_HEALTH=healthy" >> $GITHUB_ENV
+            
+            # Check response content
+            if [ -f response.json ]; then
+              echo "Response content:"
+              cat response.json
+            fi
+          else
+            echo "❌ API health check failed ($HTTP_CODE)"
+            echo "API_HEALTH=unhealthy" >> $GITHUB_ENV
+            echo "HTTP_CODE=$HTTP_CODE" >> $GITHUB_ENV
+          fi
+      
+      - name: Check domain accessibility
+        run: |
+          echo "🌐 Checking domain: https://${{ matrix.domain }}"
+          
+          # Check domain with timeout
+          DOMAIN_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "https://${{ matrix.domain }}" || echo "000")
+          
+          if [ "$DOMAIN_CODE" = "200" ] || [ "$DOMAIN_CODE" = "403" ]; then
+            echo "✅ Domain check passed ($DOMAIN_CODE)"
+            echo "DOMAIN_HEALTH=healthy" >> $GITHUB_ENV
+          else
+            echo "❌ Domain check failed ($DOMAIN_CODE)"
+            echo "DOMAIN_HEALTH=unhealthy" >> $GITHUB_ENV
+            echo "DOMAIN_CODE=$DOMAIN_CODE" >> $GITHUB_ENV
+          fi
+      
+      - name: Check CloudWatch metrics
+        if: steps.get-endpoint.outputs.endpoint != ''
+        run: |
+          echo "📊 Checking CloudWatch metrics for ${{ matrix.environment }}"
+          
+          # Check for recent errors in Lambda functions
+          END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          START_TIME=$(date -u -d '1 hour ago' +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # Check Lambda errors
+          ERROR_COUNT=$(aws logs filter-log-events \
+            --log-group-name "/aws/lambda/atwood-${{ matrix.environment }}-blog-monitor" \
+            --start-time $(date -d '1 hour ago' +%s)000 \
+            --end-time $(date +%s)000 \
+            --filter-pattern "ERROR" \
+            --query 'length(events)' \
+            --output text 2>/dev/null || echo "0")
+          
+          echo "Recent errors in past hour: $ERROR_COUNT"
+          
+          if [ "$ERROR_COUNT" -gt "5" ]; then
+            echo "⚠️ High error rate detected: $ERROR_COUNT errors in past hour"
+            echo "HIGH_ERROR_RATE=true" >> $GITHUB_ENV
+          else
+            echo "✅ Error rate normal: $ERROR_COUNT errors in past hour"
+            echo "HIGH_ERROR_RATE=false" >> $GITHUB_ENV
+          fi
+      
+      - name: Check DynamoDB metrics
+        run: |
+          echo "📊 Checking DynamoDB metrics for ${{ matrix.environment }}"
+          
+          # Check DynamoDB throttling
+          THROTTLE_COUNT=$(aws cloudwatch get-metric-statistics \
+            --namespace "AWS/DynamoDB" \
+            --metric-name "ThrottledRequests" \
+            --dimensions Name=TableName,Value=atwood-${{ matrix.environment }}-posts \
+            --start-time $(date -u -d '1 hour ago' +"%Y-%m-%dT%H:%M:%SZ") \
+            --end-time $(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+            --period 3600 \
+            --statistics Sum \
+            --query 'Datapoints[0].Sum' \
+            --output text 2>/dev/null || echo "0")
+          
+          if [ "$THROTTLE_COUNT" != "None" ] && [ "$THROTTLE_COUNT" -gt "0" ]; then
+            echo "⚠️ DynamoDB throttling detected: $THROTTLE_COUNT requests"
+            echo "DYNAMODB_THROTTLING=true" >> $GITHUB_ENV
+          else
+            echo "✅ DynamoDB performance normal"
+            echo "DYNAMODB_THROTTLING=false" >> $GITHUB_ENV
+          fi
+      
+      - name: Save health status
+        run: |
+          echo "💾 Saving health status for ${{ matrix.environment }}"
+          
+          # Create health report
+          cat > health-report-${{ matrix.environment }}.json << EOF
+          {
+            "environment": "${{ matrix.environment }}",
+            "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+            "api_health": "${API_HEALTH:-unknown}",
+            "domain_health": "${DOMAIN_HEALTH:-unknown}",
+            "high_error_rate": "${HIGH_ERROR_RATE:-false}",
+            "dynamodb_throttling": "${DYNAMODB_THROTTLING:-false}",
+            "api_endpoint": "${{ steps.get-endpoint.outputs.endpoint }}",
+            "domain": "${{ matrix.domain }}"
+          }
+          EOF
+          
+          cat health-report-${{ matrix.environment }}.json
+      
+      - name: Upload health report
+        uses: actions/upload-artifact@v4
+        with:
+          name: health-report-${{ matrix.environment }}
+          path: health-report-${{ matrix.environment }}.json
+
+  alert-on-issues:
+    name: Create Alerts
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: always()
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download health reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: health-report-*
+          merge-multiple: true
+      
+      - name: Analyze health reports
+        run: |
+          echo "📊 Analyzing health reports..."
+          
+          ISSUES_FOUND=false
+          ISSUE_DETAILS=""
+          
+          for report in health-report-*.json; do
+            if [ -f "$report" ]; then
+              ENV=$(jq -r '.environment' "$report")
+              API_HEALTH=$(jq -r '.api_health' "$report")
+              DOMAIN_HEALTH=$(jq -r '.domain_health' "$report")
+              HIGH_ERROR_RATE=$(jq -r '.high_error_rate' "$report")
+              DYNAMODB_THROTTLING=$(jq -r '.dynamodb_throttling' "$report")
+              
+              echo "Environment: $ENV"
+              echo "  API Health: $API_HEALTH"
+              echo "  Domain Health: $DOMAIN_HEALTH"
+              echo "  High Error Rate: $HIGH_ERROR_RATE"
+              echo "  DynamoDB Throttling: $DYNAMODB_THROTTLING"
+              
+              if [ "$API_HEALTH" = "unhealthy" ] || [ "$DOMAIN_HEALTH" = "unhealthy" ] || \
+                 [ "$HIGH_ERROR_RATE" = "true" ] || [ "$DYNAMODB_THROTTLING" = "true" ]; then
+                ISSUES_FOUND=true
+                ISSUE_DETAILS="$ISSUE_DETAILS\n- **$ENV**: "
+                
+                if [ "$API_HEALTH" = "unhealthy" ]; then
+                  ISSUE_DETAILS="$ISSUE_DETAILS API down, "
+                fi
+                if [ "$DOMAIN_HEALTH" = "unhealthy" ]; then
+                  ISSUE_DETAILS="$ISSUE_DETAILS Domain inaccessible, "
+                fi
+                if [ "$HIGH_ERROR_RATE" = "true" ]; then
+                  ISSUE_DETAILS="$ISSUE_DETAILS High error rate, "
+                fi
+                if [ "$DYNAMODB_THROTTLING" = "true" ]; then
+                  ISSUE_DETAILS="$ISSUE_DETAILS DynamoDB throttling, "
+                fi
+                
+                # Remove trailing comma and space
+                ISSUE_DETAILS=$(echo "$ISSUE_DETAILS" | sed 's/, $//')
+              fi
+            fi
+          done
+          
+          echo "ISSUES_FOUND=$ISSUES_FOUND" >> $GITHUB_ENV
+          echo "ISSUE_DETAILS<<EOF" >> $GITHUB_ENV
+          echo -e "$ISSUE_DETAILS" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+      
+      - name: Create incident issue
+        if: env.ISSUES_FOUND == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Service Health Alert - Issues Detected';
+            const body = `
+            ## Service Health Alert
+            
+            Our automated monitoring has detected issues with the Atwood Monitor service.
+            
+            ### Issues Detected
+            ${process.env.ISSUE_DETAILS}
+            
+            ### Immediate Actions Required
+            1. **Investigate** the affected environments
+            2. **Check** AWS CloudWatch dashboards for detailed metrics
+            3. **Review** recent deployments for potential causes
+            4. **Monitor** recovery status
+            
+            ### Monitoring Links
+            - [Staging CloudWatch Dashboard](https://console.aws.amazon.com/cloudwatch/home?region=us-west-2#dashboards:name=atwood-staging-dashboard)
+            - [Production CloudWatch Dashboard](https://console.aws.amazon.com/cloudwatch/home?region=eu-north-1#dashboards:name=atwood-production-dashboard)
+            
+            ### Incident Details
+            - **Detection Time:** ${new Date().toISOString()}
+            - **Workflow Run:** [${context.runId}](${context.payload.repository.html_url}/actions/runs/${context.runId})
+            
+            _This issue was created automatically by the monitoring workflow._
+            `;
+            
+            // Check if there's already an open incident
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'incident,monitoring'
+            });
+            
+            if (issues.length === 0) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['incident', 'monitoring', 'high-priority']
+              });
+              
+              console.log('Created new incident issue');
+            } else {
+              console.log('Incident issue already exists, not creating duplicate');
+            }
+      
+      - name: Close resolved incidents
+        if: env.ISSUES_FOUND == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Find open incident issues
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'incident,monitoring'
+            });
+            
+            for (const issue of issues) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `✅ **Incident Resolved**
+                
+                All health checks are now passing. The service appears to have recovered.
+                
+                **Resolution Time:** ${new Date().toISOString()}
+                **Verification:** [Workflow Run ${context.runId}](${context.payload.repository.html_url}/actions/runs/${context.runId})
+                
+                This incident is being automatically closed. If issues persist, please reopen.`
+              });
+              
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+              
+              console.log(`Closed resolved incident issue #${issue.number}`);
+            }

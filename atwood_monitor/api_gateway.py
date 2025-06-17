@@ -2,15 +2,16 @@
 
 from aws_cdk import aws_apigateway as apigateway
 from constructs import Construct
+from .environments import EnvironmentConfig
 
 
-def setup_api_gateway(scope: Construct, status_lambda, subscribe_lambda, register_web_push_lambda):
+def setup_api_gateway(scope: Construct, status_lambda, subscribe_lambda, register_web_push_lambda, env_config: EnvironmentConfig):
     api = apigateway.LambdaRestApi(
         scope, "StatusApi",
         handler=status_lambda,
         proxy=False,
-        rest_api_name="AtwoodStatusAPI",
-        description="Public API for blog scraper status"
+        rest_api_name=f"{env_config.resource_name_prefix}-api",
+        description=f"Public API for blog scraper status ({env_config.name})"
     )
 
     # /status

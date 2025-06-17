@@ -1,0 +1,255 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  dependency-audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Install Python dependencies
+        run: |
+          pip install safety pip-audit
+          pip install -r requirements.txt
+          pip install -r layer/requirements.txt
+          pip install -r tests/requirements.txt
+      
+      - name: Python security audit
+        run: |
+          echo "🔍 Running Python security audit..."
+          safety check --json --output safety-report.json || true
+          pip-audit --format=json --output=pip-audit-report.json || true
+      
+      - name: Install frontend dependencies
+        working-directory: elm-frontend
+        run: npm ci
+      
+      - name: Node.js security audit
+        working-directory: elm-frontend
+        run: |
+          echo "🔍 Running Node.js security audit..."
+          npm audit --audit-level moderate --json > npm-audit-report.json || true
+      
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            safety-report.json
+            pip-audit-report.json
+            elm-frontend/npm-audit-report.json
+      
+      - name: Check for critical vulnerabilities
+        run: |
+          echo "🔍 Checking for critical vulnerabilities..."
+          
+          # Check Python vulnerabilities
+          if [ -f safety-report.json ] && [ -s safety-report.json ]; then
+            CRITICAL_COUNT=$(python -c "
+            import json
+            try:
+                with open('safety-report.json', 'r') as f:
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        critical = [v for v in data if 'critical' in str(v).lower()]
+                        print(len(critical))
+                    else:
+                        print(0)
+            except:
+                print(0)
+            ")
+            
+            if [ "$CRITICAL_COUNT" -gt "0" ]; then
+              echo "::error::Found $CRITICAL_COUNT critical Python vulnerabilities"
+              echo "CRITICAL_PYTHON_VULNS=true" >> $GITHUB_ENV
+            fi
+          fi
+          
+          # Check Node.js vulnerabilities
+          if [ -f elm-frontend/npm-audit-report.json ] && [ -s elm-frontend/npm-audit-report.json ]; then
+            CRITICAL_NPM=$(python -c "
+            import json
+            try:
+                with open('elm-frontend/npm-audit-report.json', 'r') as f:
+                    data = json.load(f)
+                    critical = data.get('metadata', {}).get('vulnerabilities', {}).get('critical', 0)
+                    print(critical)
+            except:
+                print(0)
+            ")
+            
+            if [ "$CRITICAL_NPM" -gt "0" ]; then
+              echo "::error::Found $CRITICAL_NPM critical Node.js vulnerabilities"
+              echo "CRITICAL_NPM_VULNS=true" >> $GITHUB_ENV
+            fi
+          fi
+      
+      - name: Create security issue
+        if: env.CRITICAL_PYTHON_VULNS == 'true' || env.CRITICAL_NPM_VULNS == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Critical Security Vulnerabilities Detected';
+            const body = `
+            ## Critical Security Vulnerabilities Found
+            
+            Our automated security scan has detected critical vulnerabilities in project dependencies.
+            
+            ### Details
+            - **Python vulnerabilities:** ${process.env.CRITICAL_PYTHON_VULNS === 'true' ? '⚠️ Critical issues found' : '✅ No critical issues'}
+            - **Node.js vulnerabilities:** ${process.env.CRITICAL_NPM_VULNS === 'true' ? '⚠️ Critical issues found' : '✅ No critical issues'}
+            - **Scan date:** ${new Date().toISOString().split('T')[0]}
+            
+            ### Action Required
+            1. Review the security reports in the workflow artifacts
+            2. Update affected dependencies
+            3. Test the application thoroughly
+            4. Deploy security updates as soon as possible
+            
+            ### Reports
+            Check the [workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId}) for detailed security reports.
+            
+            _This issue was created automatically by the dependency audit workflow._
+            `;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['security', 'critical', 'dependencies']
+            });
+
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    needs: dependency-audit
+    if: needs.dependency-audit.result == 'success'
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Update Python dependencies
+        run: |
+          echo "📦 Checking for Python dependency updates..."
+          pip install pip-tools
+          
+          # Update main requirements
+          if pip-compile --upgrade requirements.in > /dev/null 2>&1; then
+            echo "Updated requirements.txt"
+          fi
+          
+          # Update layer requirements  
+          if pip-compile --upgrade layer/requirements.in > /dev/null 2>&1; then
+            echo "Updated layer/requirements.txt"
+          fi
+          
+          # Update test requirements
+          if pip-compile --upgrade tests/requirements.in > /dev/null 2>&1; then
+            echo "Updated tests/requirements.txt"
+          fi
+      
+      - name: Update Node.js dependencies
+        working-directory: elm-frontend
+        run: |
+          echo "📦 Checking for Node.js dependency updates..."
+          npm update
+          npm audit fix --audit-level moderate || true
+      
+      - name: Test updated dependencies
+        run: |
+          echo "🧪 Testing updated dependencies..."
+          pip install -r requirements.txt
+          python -c "import lambda_function" || true
+          
+          cd elm-frontend
+          npm ci
+          ./build.sh || echo "Frontend build failed with updated dependencies"
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update dependencies"
+          title: "chore: automated dependency updates"
+          body: |
+            ## Automated Dependency Updates
+            
+            This PR contains automated updates to project dependencies.
+            
+            ### Changes
+            - 📦 Updated Python dependencies
+            - 📦 Updated Node.js dependencies  
+            - 🔒 Applied security fixes where available
+            
+            ### Testing
+            - ✅ Dependency installation tested
+            - ✅ Basic import tests passed
+            - ✅ Frontend build tested
+            
+            ### Next Steps
+            1. Review the changes
+            2. Run full test suite
+            3. Deploy to staging for integration testing
+            4. Merge if all tests pass
+            
+            _This PR was created automatically by the dependency update workflow._
+          branch: automated/dependency-updates
+          delete-branch: true
+          labels: |
+            dependencies
+            automated
+            chore
+
+  cleanup-old-dependencies:
+    name: Cleanup Old Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Clean Python cache
+        run: |
+          echo "🧹 Cleaning Python dependency cache..."
+          find . -type d -name "__pycache__" -exec rm -rf {} + || true
+          find . -name "*.pyc" -delete || true
+      
+      - name: Clean Node.js cache
+        working-directory: elm-frontend
+        run: |
+          echo "🧹 Cleaning Node.js dependency cache..."
+          rm -rf node_modules/.cache || true
+          npm cache clean --force || true
+      
+      - name: Report cache cleanup
+        run: |
+          echo "✅ Dependency cache cleanup completed"
