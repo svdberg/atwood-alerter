@@ -6,6 +6,9 @@ from aws_cdk import (
 )
 from constructs import Construct
 
+from .api_gateway import setup_api_gateway
+from .environments import EnvironmentConfig
+from .frontend import setup_frontend
 from .lambdas import (
     create_lambda_layer,
     create_lambda_role,
@@ -15,15 +18,13 @@ from .lambdas import (
     create_web_push_lambda,
     create_register_web_push_lambda
 )
-from .storage import create_tables
-from .frontend import setup_frontend
-from .api_gateway import setup_api_gateway
 from .monitoring import setup_dashboard
-from .environments import EnvironmentConfig
+from .storage import create_tables
 
 
 class AtwoodMonitorStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, certificate_arn: str,
+    def __init__(self, scope: Construct, construct_id: str, 
+                 certificate_arn: str, 
                  env_config: EnvironmentConfig, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
 
@@ -38,15 +39,18 @@ class AtwoodMonitorStack(Stack):
         lambda_layer = create_lambda_layer(self, env_config)
         lambda_role = create_lambda_role(self, env_config)
         scraper_lambda = create_scraper_lambda(
-            self, lambda_role, lambda_layer, posts_table, users_table, notify_topic, env_config
+            self, lambda_role, lambda_layer, posts_table, users_table, 
+            notify_topic, env_config
         )
         status_lambda = create_status_lambda(
             self, lambda_role, lambda_layer, posts_table, env_config
         )
         subscribe_lambda = create_subscribe_lambda(
-            self, lambda_role, lambda_layer, users_table, notify_topic, env_config
+            self, lambda_role, lambda_layer, users_table, notify_topic, 
+            env_config
         )
-        webpush_lambda = create_web_push_lambda(self, web_push_table, web_notify_topic, env_config)
+        webpush_lambda = create_web_push_lambda(self, web_push_table, 
+                                                web_notify_topic, env_config)
         register_web_push_lambda = create_register_web_push_lambda(
             self, lambda_role, web_push_table, env_config
         )

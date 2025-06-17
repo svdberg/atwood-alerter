@@ -1,9 +1,12 @@
 # storage.py
 
-from aws_cdk import RemovalPolicy
-from aws_cdk import aws_dynamodb as dynamodb
-from aws_cdk import aws_sns as sns
+from aws_cdk import (
+    RemovalPolicy,
+    aws_dynamodb as dynamodb,
+    aws_sns as sns,
+)
 from constructs import Construct
+
 from .environments import EnvironmentConfig
 
 
@@ -12,7 +15,8 @@ def create_tables(scope: Construct, env_config: EnvironmentConfig):
 
     posts_table = dynamodb.Table(
         scope, "PostsTable",
-        partition_key=dynamodb.Attribute(name="post_id", type=dynamodb.AttributeType.STRING),
+        partition_key=dynamodb.Attribute(name="post_id",
+                                         type=dynamodb.AttributeType.STRING),
         billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
         table_name=f"{env_config.resource_name_prefix}-posts",
         removal_policy=RemovalPolicy.DESTROY if env_config.name != 'production' else RemovalPolicy.RETAIN
@@ -20,7 +24,8 @@ def create_tables(scope: Construct, env_config: EnvironmentConfig):
 
     users_table = dynamodb.Table(
         scope, "UsersTable",
-        partition_key=dynamodb.Attribute(name="user_id", type=dynamodb.AttributeType.STRING),
+        partition_key=dynamodb.Attribute(name="user_id",
+                                         type=dynamodb.AttributeType.STRING),
         billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
         table_name=f"{env_config.resource_name_prefix}-users",
         removal_policy=RemovalPolicy.DESTROY if env_config.name != 'production' else RemovalPolicy.RETAIN
@@ -28,7 +33,8 @@ def create_tables(scope: Construct, env_config: EnvironmentConfig):
 
     web_push_table = dynamodb.Table(
         scope, "WebPushSubscriptionsTable",
-        partition_key=dynamodb.Attribute(name="subscription_id", type=dynamodb.AttributeType.STRING),
+        partition_key=dynamodb.Attribute(name="subscription_id",
+                                         type=dynamodb.AttributeType.STRING),
         billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
         table_name=f"{env_config.resource_name_prefix}-web-push-subscriptions",
         removal_policy=RemovalPolicy.DESTROY,

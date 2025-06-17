@@ -7,8 +7,9 @@ Runs health checks and smoke tests against the deployed environment.
 import os
 import sys
 import time
-import requests
 from typing import Optional
+
+import requests
 
 
 def get_api_endpoint() -> Optional[str]:

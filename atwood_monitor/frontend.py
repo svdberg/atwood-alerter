@@ -1,15 +1,19 @@
 # frontend.py
 
-from aws_cdk import Duration, RemovalPolicy, CfnOutput
-from aws_cdk import aws_s3 as s3
-from aws_cdk import aws_s3_deployment as s3deploy
-from aws_cdk import aws_cloudfront as cloudfront
-from aws_cdk import aws_cloudfront_origins as origins
-from aws_cdk import aws_route53 as route53
-from aws_cdk import aws_route53_targets as route53_targets
-from aws_cdk import aws_certificatemanager as acm
-from aws_cdk import aws_iam as iam
+from aws_cdk import (
+    CfnOutput,
+    RemovalPolicy,
+    aws_certificatemanager as acm,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
+    aws_iam as iam,
+    aws_route53 as route53,
+    aws_route53_targets as route53_targets,
+    aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
+)
 from constructs import Construct
+
 from .environments import EnvironmentConfig
 
 

@@ -1,8 +1,9 @@
 import json
-import boto3
 import os
 from urllib.parse import urlparse
-from pywebpush import webpush, WebPushException
+
+import boto3
+from pywebpush import WebPushException, webpush
 
 # Get environment-specific configuration
 ENVIRONMENT = os.environ.get('ENVIRONMENT', 'production')

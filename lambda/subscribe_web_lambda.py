@@ -1,8 +1,9 @@
-import json
 import hashlib
-import boto3
+import json
 import os
 import time
+
+import boto3
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["WEB_PUSH_TABLE"])

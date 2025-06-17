@@ -1,6 +1,7 @@
-import os
-import boto3
 import json
+import os
+
+import boto3
 
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')

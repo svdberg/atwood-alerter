@@ -1,14 +1,20 @@
+import json
 import os
+import re
+from datetime import datetime, timezone
+
 import boto3
 import feedparser
 import requests
-from datetime import datetime, timezone
-from dynamo import (
-    is_new_post, save_post, save_metadata, is_table_empty, post_table_name
-)
 from bs4 import BeautifulSoup
-import json
-import re
+
+from dynamo import (
+    is_new_post,
+    is_table_empty,
+    post_table_name,
+    save_metadata,
+    save_post,
+)
 
 # Constants
 BLOG_FEED_URL = "https://atwoodknives.blogspot.com/feeds/posts/default?alt=rss"
@@ -21,15 +27,18 @@ SOLD_PATTERNS = [
     r"thank\s+you",
 ]
 
+
 def is_sold(text: str) -> bool:
     lines = text.strip().splitlines()
     last_two = lines[-2:] if len(lines) >= 2 else lines
     combined = " ".join(line.lower() for line in last_two)
     return any(re.search(pat, combined) for pat in SOLD_PATTERNS)
 
+
 # SNS (for future use)
 sns = boto3.client("sns")
 notify_topic_arn = os.environ["NOTIFY_TOPIC_ARN"]
+
 
 def lambda_handler(event, context):
     feed = feedparser.parse(BLOG_FEED_URL)

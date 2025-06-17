@@ -1,6 +1,7 @@
-import boto3
 import os
 from datetime import datetime
+
+import boto3
 
 # DynamoDB initialization
 dynamodb = boto3.resource("dynamodb")

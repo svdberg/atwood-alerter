@@ -1,8 +1,9 @@
 # lambda/status_lambda.py
 
-import boto3
-import os
 import json
+import os
+
+import boto3
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["POSTS_TABLE"])

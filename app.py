@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+
 import aws_cdk as cdk
-from atwood_monitor.atwood_monitor_stack import AtwoodMonitorStack
+
 from atwood_monitor.atwood_certificate_stack import CertificateStack
+from atwood_monitor.atwood_monitor_stack import AtwoodMonitorStack
 from atwood_monitor.environments import get_current_environment
 
 app = cdk.App()

@@ -2,9 +2,10 @@
 
 from aws_cdk import (
     Duration,
-    aws_cloudwatch as cw
+    aws_cloudwatch as cw,
 )
 from constructs import Construct
+
 from .environments import EnvironmentConfig
 
 
