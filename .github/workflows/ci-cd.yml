@@ -100,6 +100,14 @@ jobs:
         if: matrix.component == 'backend'
         run: |
           ./build-layer-with-docker.sh
+          
+      - name: Verify build outputs
+        if: matrix.component == 'backend'
+        run: |
+          echo "Checking if out/ directory exists..."
+          ls -la out/ || echo "out/ directory not found"
+          echo "Checking if layer.zip exists..."
+          ls -la out/layer.zip || echo "out/layer.zip not found"
       
       - name: Run Python Tests
         if: matrix.component == 'backend'

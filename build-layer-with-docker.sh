@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# set -e
+set -e  # Exit on error
 
 # Constants
 LAYER_DIR="layer"
@@ -17,7 +17,7 @@ echo "🛠️ Building Lambda layer in Docker..."
 cp "$LAYER_DIR/$REQUIREMENTS" "$PWD"
 
 
-docker run -it --rm \
+docker run --rm \
   -v "$PWD":/var/task \
   "$DOCKER_IMAGE" \
   bash -c "
@@ -30,4 +30,13 @@ docker run -it --rm \
 
 rm "$REQUIREMENTS"
 
-echo "✅ Layer build complete: $OUT_DIR/layer.zip"
+# Verify the layer was created successfully
+if [ -f "$OUT_DIR/layer.zip" ]; then
+    echo "✅ Layer build complete: $OUT_DIR/layer.zip"
+    echo "📦 Layer size: $(du -h $OUT_DIR/layer.zip | cut -f1)"
+    echo "📁 Contents preview:"
+    unzip -l "$OUT_DIR/layer.zip" | head -10
+else
+    echo "❌ Error: Layer build failed - $OUT_DIR/layer.zip not found"
+    exit 1
+fi
