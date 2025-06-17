@@ -1,5 +1,7 @@
 # frontend.py
 
+import os
+
 from aws_cdk import (
     CfnOutput,
     RemovalPolicy,
@@ -74,13 +76,14 @@ def setup_frontend(scope: Construct, certificate_arn: str, webpush_lambda, env_c
     )
 
     # 6. Deployment to S3 + Cache Invalidation
-    s3deploy.BucketDeployment(
-        scope, "DeployFrontend",
-        sources=[s3deploy.Source.asset("elm-frontend/dist")],
-        destination_bucket=site_bucket,
-        distribution=distribution,
-        distribution_paths=["/*"]
-    )
+    if os.path.exists("elm-frontend/dist"):
+        s3deploy.BucketDeployment(
+            scope, "DeployFrontend",
+            sources=[s3deploy.Source.asset("elm-frontend/dist")],
+            destination_bucket=site_bucket,
+            distribution=distribution,
+            distribution_paths=["/*"]
+        )
 
     # 7. Output the URL
     CfnOutput(scope, "FrontendURL", value=f"https://{env_config.domain_name}")

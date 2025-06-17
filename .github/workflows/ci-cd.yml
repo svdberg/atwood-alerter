@@ -137,6 +137,16 @@ jobs:
         run: |
           chmod +x build.sh
           ./build.sh
+          
+      - name: Verify frontend build
+        if: matrix.component == 'frontend'
+        working-directory: elm-frontend
+        run: |
+          echo "Checking what was built..."
+          ls -la
+          echo ""
+          echo "Checking dist directory..."
+          ls -la dist/ || echo "dist/ directory not found"
       
       - name: Test Elm frontend
         if: matrix.component == 'frontend'
@@ -189,9 +199,17 @@ jobs:
       
       - name: Verify frontend structure
         run: |
-          echo "Checking frontend directory structure..."
+          echo "Checking workspace contents..."
+          ls -la
+          echo ""
+          echo "Checking for elm-frontend directory..."
           ls -la elm-frontend/ || echo "elm-frontend/ directory not found"
-          ls -la elm-frontend/dist/ || echo "elm-frontend/dist/ directory not found"
+          echo ""
+          echo "Checking for elm-frontend/dist directory..."
+          ls -la elm-frontend/dist/ || echo "elm-frontend/dist/ directory not found (will skip frontend deployment during synthesis)"
+          echo ""
+          echo "Find all dist directories..."
+          find . -name "dist" -type d || echo "No dist directories found"
       
       - name: Set up Python
         uses: actions/setup-python@v4
