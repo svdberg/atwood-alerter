@@ -89,7 +89,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: elm-frontend/package-lock.json
+          # cache-dependency-path: elm-frontend/package-lock.json
       
       # Backend Build and Test
       - name: Install Python dependencies
@@ -101,16 +101,7 @@ jobs:
       - name: Build Lambda Layer
         if: matrix.component == 'backend'
         run: |
-          docker run --rm \
-            -v $PWD:/var/task \
-            amazonlinux:2023 \
-            bash -c "
-              cd /var/task && \
-              yum install -y python3 python3-pip zip && \
-              mkdir -p out/layer/python && \
-              pip3 install --target out/layer/python -r layer/requirements.txt && \
-              cd out/layer && zip -r ../layer.zip python
-            "
+          build-layer-with-docker.sh
       
       - name: Run Python Tests
         if: matrix.component == 'backend'
