@@ -89,7 +89,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          # cache-dependency-path: elm-frontend/package-lock.json
+          cache-dependency-path: elm-frontend/package-lock.json
       
       # Backend Build and Test
       - name: Install Python dependencies
