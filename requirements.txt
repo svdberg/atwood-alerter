@@ -1,0 +1,23 @@
+# CDK and development dependencies
+aws-cdk-lib>=2.100.0
+constructs>=10.0.0
+
+# Code quality tools
+flake8>=6.0.0
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.5.0
+bandit>=1.7.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+moto>=4.2.0
+
+# Lambda dependencies (for local development)
+boto3
+requests
+beautifulsoup4
+feedparser
+pywebpush==1.14.0
+cryptography>=41.0.0
