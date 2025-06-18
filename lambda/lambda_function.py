@@ -7,8 +7,13 @@ import boto3
 import feedparser
 import requests
 from bs4 import BeautifulSoup
-from dynamo import (is_new_post, is_table_empty, post_table_name,
-                    save_metadata, save_post)
+from dynamo import (
+    is_new_post,
+    is_table_empty,
+    post_table_name,
+    save_metadata,
+    save_post,
+)
 
 # Constants
 BLOG_FEED_URL = "https://atwoodknives.blogspot.com/feeds/posts/default?alt=rss"
