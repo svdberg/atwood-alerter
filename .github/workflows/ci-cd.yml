@@ -291,13 +291,15 @@ jobs:
       
       - name: Get staging API URL and rebuild frontend
         run: |
-          # Extract API URL from CDK outputs
+          # Extract API URL from CDK outputs and remove trailing slash
           API_URL=$(python -c "
           import json
           with open('staging-outputs.json', 'r') as f:
               outputs = json.load(f)
               stack_key = next(k for k in outputs.keys() if 'Staging' in k)
-              print(outputs[stack_key]['ApiEndpoint'])
+              url = outputs[stack_key]['ApiEndpoint']
+              # Remove trailing slash if present
+              print(url.rstrip('/'))
           ")
           echo "Detected staging API URL: $API_URL"
           
@@ -353,7 +355,9 @@ jobs:
           with open('staging-outputs.json', 'r') as f:
               outputs = json.load(f)
               stack_key = next(k for k in outputs.keys() if 'Staging' in k)
-              print(outputs[stack_key]['ApiEndpoint'])
+              url = outputs[stack_key]['ApiEndpoint']
+              # Remove trailing slash if present
+              print(url.rstrip('/'))
           ")
           echo "STAGING_API_ENDPOINT=$API_ENDPOINT" >> $GITHUB_ENV
       
@@ -433,7 +437,9 @@ jobs:
           with open('production-outputs.json', 'r') as f:
               outputs = json.load(f)
               stack_key = next(k for k in outputs.keys() if 'Production' in k)
-              print(outputs[stack_key]['ApiEndpoint'])
+              url = outputs[stack_key]['ApiEndpoint']
+              # Remove trailing slash if present
+              print(url.rstrip('/'))
           ")
           export API_ENDPOINT=$API_ENDPOINT
           python scripts/verify-deployment.py
