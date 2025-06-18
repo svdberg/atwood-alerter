@@ -39,7 +39,7 @@ jobs:
       
       - name: Install frontend dependencies
         working-directory: elm-frontend
-        run: npm ci
+        run: npm install
       
       - name: Node.js security audit
         working-directory: elm-frontend

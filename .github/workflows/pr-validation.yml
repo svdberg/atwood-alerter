@@ -38,6 +38,7 @@ jobs:
             ci
             chore
             revert
+            Bump
       
       - name: Check for breaking changes
         run: |
@@ -117,6 +118,12 @@ jobs:
       
       - name: Install dependencies
         run: pip install -r requirements.txt
+      
+      - name: Check frontend availability
+        run: |
+          echo "Checking for frontend assets..."
+          ls -la elm-frontend/ || echo "elm-frontend/ directory not found"
+          ls -la elm-frontend/dist/ || echo "elm-frontend/dist/ directory not found (frontend deployment will be skipped during synthesis)"
       
       - name: Test CDK synthesis for staging
         run: |
