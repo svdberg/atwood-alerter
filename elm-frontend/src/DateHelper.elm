@@ -1,13 +1,14 @@
 -- TIME FORMATTING
-module DateHelper exposing (diffDatesInDays, formatAsRssStyle, cutOffTralingZeroes)
+
+
+module DateHelper exposing (cutOffTralingZeroes, diffDatesInDays, formatAsRssStyle)
 
 import Date exposing (Date)
-import Regex
-import String
-import Result exposing (Result(..))
 import Iso8601
-import Time exposing (Month(..), Weekday(..), Zone, utc, toHour, toMinute, toSecond)
-
+import Regex
+import Result exposing (Result(..))
+import String
+import Time exposing (Month(..), Weekday(..), Zone, toHour, toMinute, toSecond, utc)
 
 
 parseIsoDate : String -> Maybe Date
@@ -28,19 +29,44 @@ parseRfcDate rfcString =
 
         monthStrToInt str =
             case str of
-                "Jan" -> Just Jan
-                "Feb" -> Just Feb
-                "Mar" -> Just Mar
-                "Apr" -> Just Apr
-                "May" -> Just May
-                "Jun" -> Just Jun
-                "Jul" -> Just Jul
-                "Aug" -> Just Aug
-                "Sep" -> Just Sep
-                "Oct" -> Just Oct
-                "Nov" -> Just Nov
-                "Dec" -> Just Dec
-                _ -> Nothing
+                "Jan" ->
+                    Just Jan
+
+                "Feb" ->
+                    Just Feb
+
+                "Mar" ->
+                    Just Mar
+
+                "Apr" ->
+                    Just Apr
+
+                "May" ->
+                    Just May
+
+                "Jun" ->
+                    Just Jun
+
+                "Jul" ->
+                    Just Jul
+
+                "Aug" ->
+                    Just Aug
+
+                "Sep" ->
+                    Just Sep
+
+                "Oct" ->
+                    Just Oct
+
+                "Nov" ->
+                    Just Nov
+
+                "Dec" ->
+                    Just Dec
+
+                _ ->
+                    Nothing
 
         matches =
             Regex.find regex rfcString
@@ -48,11 +74,12 @@ parseRfcDate rfcString =
     case matches of
         match :: _ ->
             let
-                parts = match.submatches
+                parts =
+                    match.submatches
 
                 maybeDate =
                     case parts of
-                        Just dayStr :: Just monStr :: Just yearStr :: _ ->
+                        (Just dayStr) :: (Just monStr) :: (Just yearStr) :: _ ->
                             Maybe.map3
                                 (\day month year -> Date.fromCalendarDate year month day)
                                 (String.toInt dayStr)
@@ -71,13 +98,17 @@ parseRfcDate rfcString =
 diffDatesInDays : String -> String -> String
 diffDatesInDays isoStr rfcStr =
     let
-        maybeDate1 = parseIsoDate isoStr
-        maybeDate2 = parseRfcDate rfcStr
+        maybeDate1 =
+            parseIsoDate isoStr
+
+        maybeDate2 =
+            parseRfcDate rfcStr
     in
     case ( maybeDate1, maybeDate2 ) of
         ( Just d1, Just d2 ) ->
             let
-                diff = abs (Date.diff Date.Days d2 d1)
+                diff =
+                    abs (Date.diff Date.Days d2 d1)
             in
             String.fromInt diff ++ " days"
 
@@ -91,39 +122,82 @@ formatAsRssStyle isoStr =
         Ok posix ->
             let
                 zone : Zone
-                zone = utc
+                zone =
+                    utc
 
                 date : Date
-                date = Date.fromPosix zone posix
+                date =
+                    Date.fromPosix zone posix
 
-                hour = toHour zone posix
-                minute = toMinute zone posix
-                second = toSecond zone posix
+                hour =
+                    toHour zone posix
+
+                minute =
+                    toMinute zone posix
+
+                second =
+                    toSecond zone posix
 
                 dayOfWeek =
                     case Date.weekday date of
-                        Mon -> "Mon"
-                        Tue -> "Tue"
-                        Wed -> "Wed"
-                        Thu -> "Thu"
-                        Fri -> "Fri"
-                        Sat -> "Sat"
-                        Sun -> "Sun"
+                        Mon ->
+                            "Mon"
+
+                        Tue ->
+                            "Tue"
+
+                        Wed ->
+                            "Wed"
+
+                        Thu ->
+                            "Thu"
+
+                        Fri ->
+                            "Fri"
+
+                        Sat ->
+                            "Sat"
+
+                        Sun ->
+                            "Sun"
 
                 month =
                     case Date.month date of
-                        Jan -> "Jan"
-                        Feb -> "Feb"
-                        Mar -> "Mar"
-                        Apr -> "Apr"
-                        May -> "May"
-                        Jun -> "Jun"
-                        Jul -> "Jul"
-                        Aug -> "Aug"
-                        Sep -> "Sep"
-                        Oct -> "Oct"
-                        Nov -> "Nov"
-                        Dec -> "Dec"
+                        Jan ->
+                            "Jan"
+
+                        Feb ->
+                            "Feb"
+
+                        Mar ->
+                            "Mar"
+
+                        Apr ->
+                            "Apr"
+
+                        May ->
+                            "May"
+
+                        Jun ->
+                            "Jun"
+
+                        Jul ->
+                            "Jul"
+
+                        Aug ->
+                            "Aug"
+
+                        Sep ->
+                            "Sep"
+
+                        Oct ->
+                            "Oct"
+
+                        Nov ->
+                            "Nov"
+
+                        Dec ->
+                            "Dec"
 
                 timeStr =
                     pad2 hour ++ ":" ++ pad2 minute ++ ":" ++ pad2 second
@@ -139,19 +213,24 @@ formatAsRssStyle isoStr =
         Err _ ->
             isoStr
 
+
 cutOffTralingZeroes : String -> String
 cutOffTralingZeroes s =
     let
-        suffix = " +0000"
+        suffix =
+            " +0000"
     in
     if String.endsWith suffix s then
         String.dropRight (String.length suffix) s
+
     else
         s
+
 
 pad2 : Int -> String
 pad2 n =
     if n < 10 then
         "0" ++ String.fromInt n
+
     else
         String.fromInt n
