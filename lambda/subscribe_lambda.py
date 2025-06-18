@@ -3,12 +3,13 @@ import os
 
 import boto3
 
-dynamodb = boto3.resource('dynamodb')
-sns = boto3.client('sns')
+dynamodb = boto3.resource("dynamodb")
+sns = boto3.client("sns")
 
-USERS_TABLE = os.environ['USERS_TABLE']
-NOTIFY_TOPIC_ARN = os.environ['NOTIFY_TOPIC_ARN']
+USERS_TABLE = os.environ["USERS_TABLE"]
+NOTIFY_TOPIC_ARN = os.environ["NOTIFY_TOPIC_ARN"]
 table = dynamodb.Table(USERS_TABLE)
+
 
 def lambda_handler(event, context):
     try:
@@ -21,18 +22,14 @@ def lambda_handler(event, context):
         table.put_item(Item={"user_id": email})
 
         # Subscribe to SNS topic
-        sns.subscribe(
-            TopicArn=NOTIFY_TOPIC_ARN,
-            Protocol='email',
-            Endpoint=email
-        )
+        sns.subscribe(TopicArn=NOTIFY_TOPIC_ARN, Protocol="email", Endpoint=email)
 
         return {
             "statusCode": 200,
             "headers": {"Access-Control-Allow-Origin": "*"},
-            "body": json.dumps({
-                "message": "Subscription requested. Check your email to confirm."
-            })
+            "body": json.dumps(
+                {"message": "Subscription requested. Check your email to confirm."}
+            ),
         }
 
     except Exception as e:

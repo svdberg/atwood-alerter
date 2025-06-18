@@ -65,11 +65,9 @@ def lambda_handler(event, context):
         "post_id": post_id,
         "title": newest.get("title", "No title found"),
         "url": newest.get("link", "No URL found"),
-        "published": newest.get(
-            "published", datetime.now(timezone.utc).isoformat()
-        ),
+        "published": newest.get("published", datetime.now(timezone.utc).isoformat()),
         "image_url": extract_image_from_entry(newest),
-        "sold": sold
+        "sold": sold,
     }
 
     if is_table_empty(post_table_name()):
@@ -90,42 +88,38 @@ def lambda_handler(event, context):
 
 def extract_image_from_entry(entry) -> str | None:
     # 1. Try media_content (most common in RSS feeds with media)
-    if 'media_content' in entry:
+    if "media_content" in entry:
         media = entry.media_content
-        if media and isinstance(media, list) and 'url' in media[0]:
-            return media[0]['url']
+        if media and isinstance(media, list) and "url" in media[0]:
+            return media[0]["url"]
 
     # 2. Try media_thumbnail
-    if 'media_thumbnail' in entry:
+    if "media_thumbnail" in entry:
         media = entry.media_thumbnail
-        if media and isinstance(media, list) and 'url' in media[0]:
-            return media[0]['url']
+        if media and isinstance(media, list) and "url" in media[0]:
+            return media[0]["url"]
 
     # 3. Try to parse 'content' field's HTML and get first <img>
-    content_list = entry.get('content', [])
+    content_list = entry.get("content", [])
     for content in content_list:
         soup = BeautifulSoup(content.value, "html.parser")
         img_tag = soup.find("img")
         if img_tag and img_tag.has_attr("src"):
-            return img_tag['src']
+            return img_tag["src"]
 
     # 4. Try to parse 'summary' field as fallback
-    if 'summary' in entry:
+    if "summary" in entry:
         soup = BeautifulSoup(entry.summary, "html.parser")
         img_tag = soup.find("img")
         if img_tag and img_tag.has_attr("src"):
-            return img_tag['src']
+            return img_tag["src"]
 
     # No image found
     return None
 
 
 def notify_subscribers(post):
-    message = {
-        "title": "New Blog Post!",
-        "body": post['title'],
-        "url": post['url']
-    }
+    message = {"title": "New Blog Post!", "body": post["title"], "url": post["url"]}
 
     try:
         sns.publish(
