@@ -58,7 +58,7 @@ jobs:
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=out,cdk.out,elm-frontend/node_modules
           black --check . --exclude="(out|cdk\.out|elm-frontend/node_modules)"
-          isort --check-only . --skip-glob="out/*" --skip-glob="cdk.out/*" --skip-glob="elm-frontend/node_modules/*"
+          isort --check-only . --profile black
         continue-on-error: true
       
       - name: Type checking

@@ -98,7 +98,7 @@ jobs:
       - name: Check code formatting
         run: |
           black --check --diff . --exclude="(out|cdk\.out|elm-frontend/node_modules)"
-          isort --check-only --diff . --skip-glob="out/*" --skip-glob="cdk.out/*"
+          isort --check-only --diff . --profile black
       
       - name: Run enhanced linting for PR
         run: |
