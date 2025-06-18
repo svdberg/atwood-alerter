@@ -51,9 +51,7 @@ def add_cors_options(resource, methods="POST,OPTIONS"):
                 apigateway.IntegrationResponse(
                     status_code="200",
                     response_parameters={
-                        "method.response.header.Access-Control-Allow-Origin": (
-                            "'*'"
-                        ),
+                        "method.response.header.Access-Control-Allow-Origin": ("'*'"),
                         "method.response.header.Access-Control-Allow-Headers": (
                             "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
                         ),
@@ -71,12 +69,8 @@ def add_cors_options(resource, methods="POST,OPTIONS"):
                 status_code="200",
                 response_parameters={
                     "method.response.header.Access-Control-Allow-Origin": True,
-                    "method.response.header.Access-Control-Allow-Headers": (
-                        True
-                    ),
-                    "method.response.header.Access-Control-Allow-Methods": (
-                        True
-                    ),
+                    "method.response.header.Access-Control-Allow-Headers": (True),
+                    "method.response.header.Access-Control-Allow-Methods": (True),
                 },
             )
         ],

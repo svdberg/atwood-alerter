@@ -13,7 +13,7 @@ def setup_dashboard(scope: Construct, env_config: EnvironmentConfig):
     dashboard = cw.Dashboard(
         scope,
         "WebPushDashboard",
-        dashboard_name=f"{env_config.resource_name_prefix}-dashboard"
+        dashboard_name=f"{env_config.resource_name_prefix}-dashboard",
     )
 
     push_success_metric = cw.Metric(
@@ -21,7 +21,7 @@ def setup_dashboard(scope: Construct, env_config: EnvironmentConfig):
         metric_name="PushSuccess",
         dimensions_map={"Environment": env_config.name.title()},
         statistic="Sum",
-        period=Duration.minutes(5)
+        period=Duration.minutes(5),
     )
 
     push_failure_metric = cw.Metric(
@@ -29,23 +29,27 @@ def setup_dashboard(scope: Construct, env_config: EnvironmentConfig):
         metric_name="PushFailure",
         dimensions_map={"Environment": env_config.name.title()},
         statistic="Sum",
-        period=Duration.minutes(5)
+        period=Duration.minutes(5),
     )
 
     lambda_errors_metric = cw.Metric(
         namespace="AWS/Lambda",
         metric_name="Errors",
-        dimensions_map={"FunctionName": f"{env_config.resource_name_prefix}-blog-monitor"},
+        dimensions_map={
+            "FunctionName": f"{env_config.resource_name_prefix}-blog-monitor"
+        },
         statistic="Sum",
-        period=Duration.minutes(5)
+        period=Duration.minutes(5),
     )
 
     lambda_duration_metric = cw.Metric(
         namespace="AWS/Lambda",
         metric_name="Duration",
-        dimensions_map={"FunctionName": f"{env_config.resource_name_prefix}-blog-monitor"},
+        dimensions_map={
+            "FunctionName": f"{env_config.resource_name_prefix}-blog-monitor"
+        },
         statistic="Average",
-        period=Duration.minutes(5)
+        period=Duration.minutes(5),
     )
 
     dashboard.add_widgets(
@@ -54,13 +58,13 @@ def setup_dashboard(scope: Construct, env_config: EnvironmentConfig):
             left=[push_success_metric],
             right=[push_failure_metric],
             width=12,
-            height=6
+            height=6,
         ),
         cw.GraphWidget(
             title="Lambda Performance",
             left=[lambda_duration_metric],
             right=[lambda_errors_metric],
             width=12,
-            height=6
-        )
+            height=6,
+        ),
     )

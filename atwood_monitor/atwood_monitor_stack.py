@@ -25,46 +25,52 @@ from .storage import create_tables
 
 class AtwoodMonitorStack(Stack):
     def __init__(
-            self,
-            scope: Construct,
-            construct_id: str,
-            certificate_arn: str,
-            env_config: EnvironmentConfig,
-            **kwargs,
+        self,
+        scope: Construct,
+        construct_id: str,
+        certificate_arn: str,
+        env_config: EnvironmentConfig,
+        **kwargs,
     ):
         super().__init__(scope, construct_id, **kwargs)
 
         self.env_config = env_config
 
         # DynamoDB and SNS setup
-        posts_table, users_table, web_push_table, notify_topic, web_notify_topic = create_tables(
-            self, env_config
+        posts_table, users_table, web_push_table, notify_topic, web_notify_topic = (
+            create_tables(self, env_config)
         )
 
         # Lambda functions
         lambda_layer = create_lambda_layer(self, env_config)
         lambda_role = create_lambda_role(self, env_config)
         scraper_lambda = create_scraper_lambda(
-            self, lambda_role, lambda_layer, posts_table, users_table, 
-            notify_topic, env_config
+            self,
+            lambda_role,
+            lambda_layer,
+            posts_table,
+            users_table,
+            notify_topic,
+            env_config,
         )
         status_lambda = create_status_lambda(
             self, lambda_role, lambda_layer, posts_table, env_config
         )
         subscribe_lambda = create_subscribe_lambda(
-            self, lambda_role, lambda_layer, users_table, notify_topic, 
-            env_config
+            self, lambda_role, lambda_layer, users_table, notify_topic, env_config
         )
-        webpush_lambda = create_web_push_lambda(self, web_push_table, 
-                                                web_notify_topic, env_config)
+        webpush_lambda = create_web_push_lambda(
+            self, web_push_table, web_notify_topic, env_config
+        )
         register_web_push_lambda = create_register_web_push_lambda(
             self, lambda_role, web_push_table, env_config
         )
 
         # EventBridge trigger for scraping with environment-specific schedule
         rule = events.Rule(
-            self, "ScrapeSchedule",
-            schedule=self._create_schedule(env_config.scraper_schedule)
+            self,
+            "ScrapeSchedule",
+            schedule=self._create_schedule(env_config.scraper_schedule),
         )
         rule.add_target(targets.LambdaFunction(scraper_lambda))
 
@@ -74,7 +80,7 @@ class AtwoodMonitorStack(Stack):
             status_lambda=status_lambda,
             subscribe_lambda=subscribe_lambda,
             register_web_push_lambda=register_web_push_lambda,
-            env_config=env_config
+            env_config=env_config,
         )
 
         # Frontend setup with S3, CloudFront, Route53

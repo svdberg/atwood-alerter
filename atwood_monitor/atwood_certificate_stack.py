@@ -1,7 +1,7 @@
 from aws_cdk import (
-   Stack,
-   aws_route53 as route53,
-   aws_certificatemanager as acm,
+    Stack,
+    aws_route53 as route53,
+    aws_certificatemanager as acm,
 )
 from constructs import Construct
 
@@ -32,5 +32,5 @@ class CertificateStack(Stack):
                 f"*.{base_domain}"
             ],  # Wildcard: *.atwood-sniper.com
             validation=acm.CertificateValidation.from_dns(hosted_zone),
-            certificate_name="atwood-sniper-wildcard-cert"
+            certificate_name="atwood-sniper-wildcard-cert",
         )
