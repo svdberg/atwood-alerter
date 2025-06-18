@@ -71,8 +71,36 @@ def lambda_handler(event, context):
 
     if is_table_empty(post_table_name()):
         print("First run: seeding Posts table without notifications.")
-        for post in posts:
-            save_post(post)
+        for entry in posts:
+            entry_id = entry.get("id")
+            if not entry_id:
+                continue
+
+            # Get post content for sold status check
+            entry_url = entry.link
+            try:
+                response = requests.get(entry_url)
+                soup = BeautifulSoup(response.text, "html.parser")
+                post_body = soup.find("div", class_="post-body")
+                post_text = (
+                    post_body.get_text(separator="\n").strip() if post_body else ""
+                )
+                sold = is_sold(post_text)
+            except Exception as e:
+                print(f"Failed to fetch content for {entry_id}: {e}")
+                sold = False
+
+            seed_post = {
+                "post_id": entry_id,
+                "title": entry.get("title", "No title found"),
+                "url": entry.get("link", "No URL found"),
+                "published": entry.get(
+                    "published", datetime.now(timezone.utc).isoformat()
+                ),
+                "image_url": extract_image_from_entry(entry),
+                "sold": sold,
+            }
+            save_post(seed_post)
         return
 
     if is_new_post(post_id):
