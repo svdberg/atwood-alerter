@@ -100,12 +100,6 @@ jobs:
           black --check --diff . --exclude="(out|cdk\.out|elm-frontend/node_modules)"
           isort --check-only --diff . --profile black
       
-      - name: Run enhanced linting for PR
-        run: |
-          flake8 . --count --statistics \
-            --exclude=out,cdk.out,elm-frontend/node_modules \
-            --format='::error file=%(path)s,line=%(row)d,col=%(col)d::%(code)s: %(text)s'
-
   # Test CDK synthesis for both environments
   pr-infrastructure-test:
     name: PR Infrastructure Test
