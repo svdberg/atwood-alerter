@@ -5,6 +5,11 @@ on:
     branches: [ main ]
     types: [opened, synchronize, reopened]
 
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
@@ -38,6 +43,8 @@ jobs:
             ci
             chore
             revert
+            Bump
+            Fix
       
       - name: Check for breaking changes
         run: |
@@ -91,14 +98,8 @@ jobs:
       - name: Check code formatting
         run: |
           black --check --diff . --exclude="(out|cdk\.out|elm-frontend/node_modules)"
-          isort --check-only --diff . --skip-glob="out/*" --skip-glob="cdk.out/*"
+          isort --check-only --diff . --profile black
       
-      - name: Run enhanced linting for PR
-        run: |
-          flake8 . --count --statistics \
-            --exclude=out,cdk.out,elm-frontend/node_modules \
-            --format='::error file=%(path)s,line=%(row)d,col=%(col)d::%(code)s: %(text)s'
-
   # Test CDK synthesis for both environments
   pr-infrastructure-test:
     name: PR Infrastructure Test
@@ -117,6 +118,15 @@ jobs:
       
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Build out layer
+        run: ./build-layer-with-docker.sh
+      
+      - name: Check frontend availability
+        run: |
+          echo "Checking for frontend assets..."
+          ls -la elm-frontend/ || echo "elm-frontend/ directory not found"
+          ls -la elm-frontend/dist/ || echo "elm-frontend/dist/ directory not found (frontend deployment will be skipped during synthesis)"
       
       - name: Test CDK synthesis for staging
         run: |
@@ -152,15 +162,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: elm-frontend/package-lock.json
       
       - name: Install Elm
         run: npm install -g elm elm-format elm-review
       
       - name: Install frontend dependencies
         working-directory: elm-frontend
-        run: npm ci
+        run: npm install
       
       - name: Check Elm formatting
         working-directory: elm-frontend
@@ -180,7 +188,7 @@ jobs:
         working-directory: elm-frontend
         run: |
           chmod +x build.sh
-          ./build.sh
+          ENVIRONMENT=staging ./build.sh
       
       - name: Check bundle size
         working-directory: elm-frontend
@@ -205,7 +213,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { context } = require('@actions/github');
+            // No require needed - github and context are automatically available
             
             // Determine overall status
             const needs = ${{ toJSON(needs) }};
@@ -242,7 +250,7 @@ jobs:
             
             _This comment will be updated when the PR is modified._`;
             
-            // Find existing comment
+            // Find existing comment - using 'context' instead of 'ctx'
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,

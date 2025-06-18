@@ -22,26 +22,23 @@ def generate_vapid_keys():
     private_key_bytes = private_key.private_bytes(
         encoding=serialization.Encoding.DER,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
 
     # Serialize public key (uncompressed format for VAPID)
     public_key_bytes = public_key.public_bytes(
         encoding=serialization.Encoding.X962,
-        format=serialization.PublicFormat.UncompressedPoint
+        format=serialization.PublicFormat.UncompressedPoint,
     )
 
     # Base64 URL-safe encode (without padding)
-    private_key_b64 = base64.urlsafe_b64encode(
-        private_key_bytes
-    ).decode('utf-8').rstrip('=')
-    public_key_b64 = base64.urlsafe_b64encode(
-        public_key_bytes
-    ).decode('utf-8').rstrip('=')
-    return {
-        'private_key': private_key_b64,
-        'public_key': public_key_b64
-    }
+    private_key_b64 = (
+        base64.urlsafe_b64encode(private_key_bytes).decode("utf-8").rstrip("=")
+    )
+    public_key_b64 = (
+        base64.urlsafe_b64encode(public_key_bytes).decode("utf-8").rstrip("=")
+    )
+    return {"private_key": private_key_b64, "public_key": public_key_b64}
 
 
 def main():

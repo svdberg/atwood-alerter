@@ -20,6 +20,8 @@ def is_new_post(post_id: str) -> bool:
 
 def save_post(post: dict):
     posts_table.put_item(Item=post)
+
+
 def save_metadata(post: dict):
     posts_table.put_item(
         Item={
@@ -50,7 +52,8 @@ def get_all_users() -> list:
 
 def is_table_empty(table):
     response = table.scan(Limit=1)
-    return 'Items' not in response or len(response['Items']) == 0
+    return "Items" not in response or len(response["Items"]) == 0
+
 
 def post_table_name():
     return posts_table

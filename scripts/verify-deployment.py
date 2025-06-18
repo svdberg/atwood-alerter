@@ -15,31 +15,32 @@ import requests
 def get_api_endpoint() -> Optional[str]:
     """Get API endpoint from environment or CDK outputs."""
     # Try environment variable first
-    endpoint = os.environ.get('API_ENDPOINT')
+    endpoint = os.environ.get("API_ENDPOINT")
     if endpoint:
         return endpoint
 
     # Try to get from CDK outputs
     try:
         import json
-        env = os.environ.get('ENVIRONMENT', 'development')
+
+        env = os.environ.get("ENVIRONMENT", "development")
         outputs_file = f"{env}-outputs.json"
 
         if os.path.exists(outputs_file):
-            with open(outputs_file, 'r') as f:
+            with open(outputs_file, "r") as f:
                 outputs = json.load(f)
-                return outputs.get('ApiEndpoint')
+                return outputs.get("ApiEndpoint")
     except Exception as e:
         print(f"Could not read CDK outputs: {e}")
 
     # Fallback based on environment
-    env = os.environ.get('ENVIRONMENT', 'development')
-    if env == 'production':
-        return 'https://api.atwood-sniper.com'
-    elif env == 'staging':
-        return 'https://api.staging.atwood-sniper.com'
+    env = os.environ.get("ENVIRONMENT", "development")
+    if env == "production":
+        return "https://api.atwood-sniper.com"
+    elif env == "staging":
+        return "https://api.staging.atwood-sniper.com"
     else:
-        return 'https://api.dev.atwood-sniper.com'
+        return "https://api.dev.atwood-sniper.com"
 
 
 def health_check(endpoint: str, timeout: int = 30) -> bool:
@@ -51,7 +52,9 @@ def health_check(endpoint: str, timeout: int = 30) -> bool:
 
         if response.status_code == 200:
             data = response.json()
-            print(f"✅ Health check passed - Last check: {data.get('last_check', 'N/A')}")
+            print(
+                f"✅ Health check passed - Last check: {data.get('last_check', 'N/A')}"
+            )
             return True
         else:
             print(f"❌ Health check failed - Status: {response.status_code}")
@@ -75,22 +78,22 @@ def smoke_test(endpoint: str) -> bool:
             "method": "GET",
             "path": "/status",
             "expected_status": 200,
-            "expected_keys": ["last_check", "status"]
+            "expected_keys": ["last_check", "status"],
         },
         {
             "name": "Subscribe endpoint validation",
             "method": "POST",
             "path": "/subscribe",
             "data": {},
-            "expected_status": 400  # Should fail without valid email
+            "expected_status": 400,  # Should fail without valid email
         },
         {
             "name": "Register web push validation",
             "method": "POST",
             "path": "/register-subscription",
             "data": {},
-            "expected_status": 400  # Should fail without valid subscription data
-        }
+            "expected_status": 400,  # Should fail without valid subscription data
+        },
     ]
 
     for test in tests:
@@ -101,12 +104,13 @@ def smoke_test(endpoint: str) -> bool:
                 response = requests.get(f"{endpoint}{test['path']}")
             elif test["method"] == "POST":
                 response = requests.post(
-                    f"{endpoint}{test['path']}",
-                    json=test.get("data", {})
+                    f"{endpoint}{test['path']}", json=test.get("data", {})
                 )
 
             if response.status_code != test["expected_status"]:
-                print(f"    ❌ Expected status {test['expected_status']}, got {response.status_code}")
+                print(
+                    f"    ❌ Expected status {test['expected_status']}, got {response.status_code}"
+                )
                 return False
 
             # Check for expected keys in response
@@ -176,7 +180,7 @@ def main():
     print("🔍 Starting post-deployment verification...")
 
     # Get environment
-    env = os.environ.get('ENVIRONMENT', 'development')
+    env = os.environ.get("ENVIRONMENT", "development")
     print(f"Environment: {env}")
 
     # Get API endpoint
@@ -195,14 +199,14 @@ def main():
     checks = [
         ("Health Check", lambda: health_check(endpoint)),
         ("Smoke Tests", lambda: smoke_test(endpoint)),
-        ("Performance Check", lambda: performance_check(endpoint))
+        ("Performance Check", lambda: performance_check(endpoint)),
     ]
 
     # Add domain check for non-dev environments
-    if env != 'development':
+    if env != "development":
         domain_map = {
-            'staging': 'staging.atwood-sniper.com',
-            'production': 'atwood-sniper.com'
+            "staging": "staging.atwood-sniper.com",
+            "production": "atwood-sniper.com",
         }
         domain = domain_map.get(env)
         if domain:

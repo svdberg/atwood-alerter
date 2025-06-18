@@ -17,7 +17,7 @@ cert_stack = CertificateStack(
     app,
     "AtwoodMonitor-Certificate",  # Single certificate stack
     env=cdk.Environment(account=env_config.account, region="us-east-1"),
-    env_config=env_config
+    env_config=env_config,
 )
 
 # Main stack
@@ -27,7 +27,7 @@ main_stack = AtwoodMonitorStack(
     env=cdk.Environment(account=env_config.account, region=env_config.region),
     certificate_arn=cert_stack.certificate.certificate_arn,
     env_config=env_config,
-    cross_region_references=True
+    cross_region_references=True,
 )
 
 app.synth()

@@ -7,15 +7,19 @@ from .environments import EnvironmentConfig
 
 
 def setup_api_gateway(
-    scope: Construct, status_lambda, subscribe_lambda,
-    register_web_push_lambda, env_config: EnvironmentConfig
+    scope: Construct,
+    status_lambda,
+    subscribe_lambda,
+    register_web_push_lambda,
+    env_config: EnvironmentConfig,
 ):
     api = apigateway.LambdaRestApi(
-        scope, "StatusApi",
+        scope,
+        "StatusApi",
         handler=status_lambda,
         proxy=False,
         rest_api_name=f"{env_config.resource_name_prefix}-api",
-        description=f"Public API for blog scraper status ({env_config.name})"
+        description=f"Public API for blog scraper status ({env_config.name})",
     )
 
     # /status
@@ -47,9 +51,7 @@ def add_cors_options(resource, methods="POST,OPTIONS"):
                 apigateway.IntegrationResponse(
                     status_code="200",
                     response_parameters={
-                        "method.response.header.Access-Control-Allow-Origin": (
-                            "'*'"
-                        ),
+                        "method.response.header.Access-Control-Allow-Origin": ("'*'"),
                         "method.response.header.Access-Control-Allow-Headers": (
                             "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
                         ),
@@ -67,12 +69,8 @@ def add_cors_options(resource, methods="POST,OPTIONS"):
                 status_code="200",
                 response_parameters={
                     "method.response.header.Access-Control-Allow-Origin": True,
-                    "method.response.header.Access-Control-Allow-Headers": (
-                        True
-                    ),
-                    "method.response.header.Access-Control-Allow-Methods": (
-                        True
-                    ),
+                    "method.response.header.Access-Control-Allow-Headers": (True),
+                    "method.response.header.Access-Control-Allow-Methods": (True),
                 },
             )
         ],

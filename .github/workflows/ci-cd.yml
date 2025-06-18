@@ -58,7 +58,7 @@ jobs:
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=out,cdk.out,elm-frontend/node_modules
           black --check . --exclude="(out|cdk\.out|elm-frontend/node_modules)"
-          isort --check-only . --skip-glob="out/*" --skip-glob="cdk.out/*" --skip-glob="elm-frontend/node_modules/*"
+          isort --check-only . --profile black
         continue-on-error: true
       
       - name: Type checking
@@ -136,7 +136,7 @@ jobs:
         working-directory: elm-frontend
         run: |
           chmod +x build.sh
-          ./build.sh
+          ENVIRONMENT=staging ./build.sh
           
       - name: Verify frontend build
         if: matrix.component == 'frontend'
@@ -264,18 +264,54 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
       - name: Install CDK
         run: npm install -g aws-cdk
       
       - name: Install dependencies
         run: pip install -r requirements.txt
       
-      - name: Deploy to staging
+      - name: Rebuild frontend for staging
+        working-directory: elm-frontend
+        run: |
+          npm install
+          chmod +x build.sh
+          ENVIRONMENT=staging ./build.sh
+      
+      - name: Deploy infrastructure to staging
         run: |
           export ENVIRONMENT=staging
           export AWS_DEFAULT_REGION=${{ env.AWS_REGION_STAGING }}
           cdk deploy --all --require-approval never \
             --outputs-file staging-outputs.json
+      
+      - name: Get staging API URL and rebuild frontend
+        run: |
+          # Extract API URL from CDK outputs
+          API_URL=$(python -c "
+          import json
+          with open('staging-outputs.json', 'r') as f:
+              outputs = json.load(f)
+              stack_key = next(k for k in outputs.keys() if 'Staging' in k)
+              print(outputs[stack_key]['ApiEndpoint'])
+          ")
+          echo "Detected staging API URL: $API_URL"
+          
+          # Rebuild frontend with correct API URL
+          cd elm-frontend
+          sed -i "s|https://api.staging.atwood-sniper.com|$API_URL|g" build.sh
+          chmod +x build.sh
+          ENVIRONMENT=staging ./build.sh
+          
+          # Redeploy just the frontend with updated API URL
+          cd ..
+          export ENVIRONMENT=staging
+          export AWS_DEFAULT_REGION=${{ env.AWS_REGION_STAGING }}
+          cdk deploy --all --require-approval never
         env:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
@@ -361,11 +397,23 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
       - name: Install CDK
         run: npm install -g aws-cdk
       
       - name: Install dependencies
         run: pip install -r requirements.txt
+      
+      - name: Rebuild frontend for production
+        working-directory: elm-frontend
+        run: |
+          npm install
+          chmod +x build.sh
+          ENVIRONMENT=production ./build.sh
       
       - name: Deploy to production
         run: |
