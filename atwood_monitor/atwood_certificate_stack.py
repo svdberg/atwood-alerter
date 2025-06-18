@@ -1,8 +1,6 @@
-from aws_cdk import (
-    Stack,
-    aws_route53 as route53,
-    aws_certificatemanager as acm,
-)
+from aws_cdk import Stack
+from aws_cdk import aws_certificatemanager as acm
+from aws_cdk import aws_route53 as route53
 from constructs import Construct
 
 from .environments import EnvironmentConfig
