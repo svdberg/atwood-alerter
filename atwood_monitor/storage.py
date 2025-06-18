@@ -1,10 +1,8 @@
 # storage.py
 
-from aws_cdk import (
-    RemovalPolicy,
-    aws_dynamodb as dynamodb,
-    aws_sns as sns,
-)
+from aws_cdk import RemovalPolicy
+from aws_cdk import aws_dynamodb as dynamodb
+from aws_cdk import aws_sns as sns
 from constructs import Construct
 
 from .environments import EnvironmentConfig

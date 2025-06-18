@@ -1,9 +1,7 @@
 # monitoring.py
 
-from aws_cdk import (
-    Duration,
-    aws_cloudwatch as cw,
-)
+from aws_cdk import Duration
+from aws_cdk import aws_cloudwatch as cw
 from constructs import Construct
 
 from .environments import EnvironmentConfig

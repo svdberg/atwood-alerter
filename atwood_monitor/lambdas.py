@@ -1,12 +1,10 @@
 import os
 
-from aws_cdk import (
-    Duration,
-    aws_iam as iam,
-    aws_lambda as lambda_,
-    aws_sns as sns,
-    aws_sns_subscriptions as subscriptions,
-)
+from aws_cdk import Duration
+from aws_cdk import aws_iam as iam
+from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_sns as sns
+from aws_cdk import aws_sns_subscriptions as subscriptions
 from aws_cdk.aws_ecr_assets import Platform
 from constructs import Construct
 

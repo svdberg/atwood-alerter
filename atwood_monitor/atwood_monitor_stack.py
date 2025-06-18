@@ -1,24 +1,15 @@
-from aws_cdk import (
-    Stack,
-    Duration,
-    aws_events as events,
-    aws_events_targets as targets,
-    CfnOutput,
-)
+from aws_cdk import CfnOutput, Duration, Stack
+from aws_cdk import aws_events as events
+from aws_cdk import aws_events_targets as targets
 from constructs import Construct
 
 from .api_gateway import setup_api_gateway
 from .environments import EnvironmentConfig
 from .frontend import setup_frontend
-from .lambdas import (
-    create_lambda_layer,
-    create_lambda_role,
-    create_scraper_lambda,
-    create_status_lambda,
-    create_subscribe_lambda,
-    create_web_push_lambda,
-    create_register_web_push_lambda,
-)
+from .lambdas import (create_lambda_layer, create_lambda_role,
+                      create_register_web_push_lambda, create_scraper_lambda,
+                      create_status_lambda, create_subscribe_lambda,
+                      create_web_push_lambda)
 from .monitoring import setup_dashboard
 from .storage import create_tables
 
