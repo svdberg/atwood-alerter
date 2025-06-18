@@ -40,6 +40,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: elm-frontend
         run: npm install
+
+      - name: Build out layer
+        run: ./build-layer-with-docker.sh
       
       - name: Node.js security audit
         working-directory: elm-frontend
