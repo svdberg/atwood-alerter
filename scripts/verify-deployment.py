@@ -36,11 +36,11 @@ def get_api_endpoint() -> Optional[str]:
     # Fallback based on environment
     env = os.environ.get("ENVIRONMENT", "development")
     if env == "production":
-        return "https://api.atwood-sniper.com"
+        return "https://api.atwood-sniper.com/"
     elif env == "staging":
-        return "https://api.staging.atwood-sniper.com"
+        return "https://api.staging.atwood-sniper.com/"
     else:
-        return "https://api.dev.atwood-sniper.com"
+        return "https://api.dev.atwood-sniper.com/"
 
 
 def health_check(endpoint: str, timeout: int = 30) -> bool:
@@ -48,7 +48,7 @@ def health_check(endpoint: str, timeout: int = 30) -> bool:
     print(f"🏥 Running health check against {endpoint}")
 
     try:
-        response = requests.get(f"{endpoint}/status", timeout=timeout)
+        response = requests.get(f"{endpoint}status", timeout=timeout)
 
         if response.status_code == 200:
             data = response.json()
@@ -76,21 +76,21 @@ def smoke_test(endpoint: str) -> bool:
         {
             "name": "Status endpoint returns 200",
             "method": "GET",
-            "path": "/status",
+            "path": "status",
             "expected_status": 200,
             "expected_keys": ["last_check", "status"],
         },
         {
             "name": "Subscribe endpoint validation",
             "method": "POST",
-            "path": "/subscribe",
+            "path": "subscribe",
             "data": {},
             "expected_status": 400,  # Should fail without valid email
         },
         {
             "name": "Register web push validation",
             "method": "POST",
-            "path": "/register-subscription",
+            "path": "register-subscription",
             "data": {},
             "expected_status": 400,  # Should fail without valid subscription data
         },
@@ -141,7 +141,7 @@ def performance_check(endpoint: str) -> bool:
 
     try:
         start_time = time.time()
-        requests.get(f"{endpoint}/status")
+        requests.get(f"{endpoint}status")
         response_time = time.time() - start_time
 
         if response_time > 5.0:
