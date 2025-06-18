@@ -193,7 +193,8 @@ jobs:
           
           cd elm-frontend
           npm ci
-          ./build.sh || echo "Frontend build failed with updated dependencies"
+          chmod +x build.sh
+          ENVIRONMENT=staging ./build.sh || echo "Frontend build failed with updated dependencies"
       
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5

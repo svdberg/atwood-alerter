@@ -17,6 +17,7 @@ import Html.Styled.Attributes as Attr
 import Html.Styled.Events as Events
 import Tailwind.Utilities as Tw
 import Tailwind.Theme as Twt
+import Config exposing (apiBaseUrl)
 
 -- MODEL
 
@@ -83,7 +84,7 @@ type Msg
 fetchStatus : Cmd Msg
 fetchStatus =
     Http.get
-        { url = "https://b3q0v6btng.execute-api.eu-north-1.amazonaws.com/prod/status"
+        { url = apiBaseUrl ++ "/status"
         , expect = Http.expectJson GotStatus statusDecoder
         }
 
@@ -122,7 +123,7 @@ update msg model =
                     Http.jsonBody (Json.Encode.object [ ( "email", Json.Encode.string model.email ) ])
                 request =
                     Http.post
-                        { url = "https://b3q0v6btng.execute-api.eu-north-1.amazonaws.com/prod/subscribe"                        
+                        { url = apiBaseUrl ++ "/subscribe"                        
                         , body = body
                         , expect = Http.expectString GotSubscriptionResult
                         }

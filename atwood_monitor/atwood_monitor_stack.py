@@ -1,5 +1,6 @@
 from aws_cdk import (
-    Stack, Duration,
+    Stack,
+    Duration,
     aws_events as events,
     aws_events_targets as targets,
     CfnOutput,
@@ -16,16 +17,21 @@ from .lambdas import (
     create_status_lambda,
     create_subscribe_lambda,
     create_web_push_lambda,
-    create_register_web_push_lambda
+    create_register_web_push_lambda,
 )
 from .monitoring import setup_dashboard
 from .storage import create_tables
 
 
 class AtwoodMonitorStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, 
-                 certificate_arn: str, 
-                 env_config: EnvironmentConfig, **kwargs):
+    def __init__(
+            self,
+            scope: Construct,
+            construct_id: str,
+            certificate_arn: str,
+            env_config: EnvironmentConfig,
+            **kwargs,
+    ):
         super().__init__(scope, construct_id, **kwargs)
 
         self.env_config = env_config

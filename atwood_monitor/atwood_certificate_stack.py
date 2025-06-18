@@ -10,8 +10,7 @@ from .environments import EnvironmentConfig
 
 class CertificateStack(Stack):
     def __init__(
-        self, scope: Construct, id: str,
-        env_config: EnvironmentConfig, **kwargs
+        self, scope: Construct, id: str, env_config: EnvironmentConfig, **kwargs
     ):
         super().__init__(scope, id, **kwargs)
 
@@ -20,14 +19,14 @@ class CertificateStack(Stack):
         # Always use the base domain for the hosted zone
         base_domain = "atwood-sniper.com"
         hosted_zone = route53.HostedZone.from_lookup(
-            self, "HostedZone",
-            domain_name=base_domain
+            self, "HostedZone", domain_name=base_domain
         )
 
         # Create a wildcard certificate that covers all subdomains
         # This single certificate works for both staging and production
         self.certificate = acm.Certificate(
-            self, "WildcardCert",
+            self,
+            "WildcardCert",
             domain_name=base_domain,  # Primary domain: atwood-sniper.com
             subject_alternative_names=[
                 f"*.{base_domain}"

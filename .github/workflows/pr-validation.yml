@@ -39,6 +39,7 @@ jobs:
             chore
             revert
             Bump
+            Fix
       
       - name: Check for breaking changes
         run: |
@@ -187,7 +188,7 @@ jobs:
         working-directory: elm-frontend
         run: |
           chmod +x build.sh
-          ./build.sh
+          ENVIRONMENT=staging ./build.sh
       
       - name: Check bundle size
         working-directory: elm-frontend
