@@ -119,6 +119,9 @@ jobs:
       
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Build out layer
+        run: ./build-layer-with-docker.sh
       
       - name: Check frontend availability
         run: |
@@ -160,15 +163,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: elm-frontend/package-lock.json
       
       - name: Install Elm
         run: npm install -g elm elm-format elm-review
       
       - name: Install frontend dependencies
         working-directory: elm-frontend
-        run: npm ci
+        run: npm install
       
       - name: Check Elm formatting
         working-directory: elm-frontend
@@ -213,7 +214,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { context } = require('@actions/github');
+            const { ctx } = require('@actions/github');
             
             // Determine overall status
             const needs = ${{ toJSON(needs) }};
@@ -252,9 +253,9 @@ jobs:
             
             // Find existing comment
             const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
+              owner: ctx.repo.owner,
+              repo: ctx.repo.repo,
+              issue_number: ctx.issue.number,
             });
             
             const existingComment = comments.find(comment => 
@@ -263,16 +264,16 @@ jobs:
             
             if (existingComment) {
               await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner: ctx.repo.owner,
+                repo: ctx.repo.repo,
                 comment_id: existingComment.id,
                 body: comment
               });
             } else {
               await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
+                owner: ctx.repo.owner,
+                repo: ctx.repo.repo,
+                issue_number: ctx.issue.number,
                 body: comment
               });
             }
