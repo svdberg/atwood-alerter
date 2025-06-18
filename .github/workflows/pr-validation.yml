@@ -5,6 +5,11 @@ on:
     branches: [ main ]
     types: [opened, synchronize, reopened]
 
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
