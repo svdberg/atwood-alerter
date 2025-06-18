@@ -10,7 +10,8 @@
     "tailwindcss": "^4.1.10"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4.1.10"
+    "@tailwindcss/postcss": "^4.1.10",
+    "elm-format": "^0.8.7"
   },
   "scripts": {
     "build": "postcss styles/tailwind.css -o dist/tailwind.css",
