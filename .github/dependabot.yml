@@ -12,6 +12,10 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    commit-message:
+      prefix: Bump:
+      prefix-development: chore
+      include: scope
 
   # Node.js dependencies for frontend
   - package-ecosystem: "npm"
@@ -25,6 +29,11 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    commit-message:
+      prefix: Bump:
+      prefix-development: chore
+      include: scope
+
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -38,3 +47,7 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+    commit-message:
+      prefix: Bump:
+      prefix-development: chore
+      include: scope
