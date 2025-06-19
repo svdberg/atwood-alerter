@@ -78,7 +78,7 @@ def smoke_test(endpoint: str) -> bool:
             "method": "GET",
             "path": "/status",
             "expected_status": 200,
-            "expected_keys": ["last_check", "status"],
+            "expected_keys": ["last_run_time", "last_seen_post"],
         },
         {
             "name": "Subscribe endpoint validation",
