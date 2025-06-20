@@ -1,6 +1,6 @@
+import importlib
 import json
 import os
-import importlib
 import sys
 
 import boto3

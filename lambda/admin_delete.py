@@ -3,7 +3,6 @@ import os
 
 import boto3
 
-
 dynamodb = boto3.resource("dynamodb")
 users_table = dynamodb.Table(os.environ["USERS_TABLE"])
 web_push_table = dynamodb.Table(os.environ["WEB_PUSH_TABLE"])
