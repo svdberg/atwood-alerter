@@ -8,6 +8,7 @@ param_name = os.environ["ADMIN_SECRET_PARAM"]
 
 def lambda_handler(event, context):
     token = event.get("headers", {}).get("Authorization")
+
     secret = ssm.get_parameter(Name=param_name, WithDecryption=True)["Parameter"][
         "Value"
     ]

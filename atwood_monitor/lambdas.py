@@ -176,7 +176,7 @@ def create_web_push_lambda(
 
     return webpush_lambda
 
-
+  
 def create_admin_stats_lambda(
     scope: Construct,
     role,
@@ -251,4 +251,16 @@ def create_admin_authorizer_lambda(
         },
         role=role,
     )
+    secret_arn = (
+        f"arn:aws:ssm:{env_config.region}:{env_config.account}:parameter"
+        f"{env_config.admin_secret_param}"
+    )
+    fn.add_to_role_policy(
+        iam.PolicyStatement(
+            actions=["ssm:GetParameter"],
+            resources=[secret_arn],
+            effect=iam.Effect.ALLOW,
+        )
+    )
+
     return fn

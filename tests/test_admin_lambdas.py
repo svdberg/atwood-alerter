@@ -29,6 +29,7 @@ def test_admin_stats_counts():
     ddb.create_table(
         TableName="WebPush",
         KeySchema=[{"AttributeName": "subscription_id", "KeyType": "HASH"}],
+
         AttributeDefinitions=[
             {"AttributeName": "subscription_id", "AttributeType": "S"}
         ],
@@ -78,3 +79,4 @@ def test_admin_delete_user():
     result = mod.lambda_handler(event, None)
     assert result["statusCode"] == 200
     assert "Item" not in table.get_item(Key={"user_id": "a"})
+    
