@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Panel</title>
+</head>
+<body>
+  <h1>Admin Panel</h1>
+  <div>
+    <label>Secret: <input id="secret" type="password"></label>
+    <button id="load">Load Stats</button>
+  </div>
+  <pre id="stats"></pre>
+  <h2>Delete Entry</h2>
+  <input id="deleteId" placeholder="Email or subscription id">
+  <button id="deleteBtn">Delete</button>
+  <pre id="result"></pre>
+<script>
+const API_BASE_URL = 'API_BASE_URL_PLACEHOLDER';
+
+document.getElementById('load').onclick = async () => {
+  const secret = document.getElementById('secret').value;
+  const res = await fetch(`${API_BASE_URL}/admin`, {headers: {Authorization: secret}});
+  document.getElementById('stats').textContent = await res.text();
+};
+
+document.getElementById('deleteBtn').onclick = async () => {
+  const secret = document.getElementById('secret').value;
+  const id = document.getElementById('deleteId').value;
+  const res = await fetch(`${API_BASE_URL}/admin`, {
+    method: 'DELETE',
+    headers: {'Content-Type': 'application/json', Authorization: secret},
+    body: JSON.stringify({email: id, subscription_id: id})
+  });
+  document.getElementById('result').textContent = await res.text();
+};
+</script>
+</body>
+</html>

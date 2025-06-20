@@ -16,6 +16,9 @@ fi
 # Set environment and region
 export ENVIRONMENT=production
 export AWS_DEFAULT_REGION=eu-north-1
+if [ -n "$ADMIN_SECRET" ]; then
+  aws ssm put-parameter --name "/atwood/production/admin_secret" --value "$ADMIN_SECRET" --type "SecureString" --overwrite
+fi
 
 # Build the Lambda layer
 echo "📦 Building Lambda layer..."
