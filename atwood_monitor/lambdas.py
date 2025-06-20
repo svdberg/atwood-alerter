@@ -176,7 +176,15 @@ def create_web_push_lambda(
 
     return webpush_lambda
 
-def create_admin_stats_lambda(scope: Construct, role, layer, users_table, web_push_table, env_config: EnvironmentConfig) -> lambda_.Function:
+
+def create_admin_stats_lambda(
+    scope: Construct,
+    role,
+    layer,
+    users_table,
+    web_push_table,
+    env_config: EnvironmentConfig,
+) -> lambda_.Function:
     fn = lambda_.Function(
         scope,
         "AdminStatsLambda",
@@ -198,7 +206,14 @@ def create_admin_stats_lambda(scope: Construct, role, layer, users_table, web_pu
     return fn
 
 
-def create_admin_delete_lambda(scope: Construct, role, layer, users_table, web_push_table, env_config: EnvironmentConfig) -> lambda_.Function:
+def create_admin_delete_lambda(
+    scope: Construct,
+    role,
+    layer,
+    users_table,
+    web_push_table,
+    env_config: EnvironmentConfig,
+) -> lambda_.Function:
     fn = lambda_.Function(
         scope,
         "AdminDeleteLambda",
@@ -220,7 +235,9 @@ def create_admin_delete_lambda(scope: Construct, role, layer, users_table, web_p
     return fn
 
 
-def create_admin_authorizer_lambda(scope: Construct, role, env_config: EnvironmentConfig) -> lambda_.Function:
+def create_admin_authorizer_lambda(
+    scope: Construct, role, env_config: EnvironmentConfig
+) -> lambda_.Function:
     fn = lambda_.Function(
         scope,
         "AdminAuthorizerLambda",

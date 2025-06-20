@@ -70,7 +70,9 @@ class AtwoodMonitorStack(Stack):
         admin_delete_lambda = create_admin_delete_lambda(
             self, lambda_role, lambda_layer, users_table, web_push_table, env_config
         )
-        admin_auth_lambda = create_admin_authorizer_lambda(self, lambda_role, env_config)
+        admin_auth_lambda = create_admin_authorizer_lambda(
+            self, lambda_role, env_config
+        )
 
         # EventBridge trigger for scraping with environment-specific schedule
         rule = events.Rule(
