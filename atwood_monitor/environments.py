@@ -15,6 +15,7 @@ class EnvironmentConfig:
     monitoring_enabled: bool = True
     debug_mode: bool = False
     scraper_schedule: str = "rate(1 minute)"  # Default scraping frequency
+    admin_secret_param: str = "/atwood/admin_secret"
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary for CDK context."""
@@ -27,6 +28,7 @@ class EnvironmentConfig:
             "monitoring_enabled": self.monitoring_enabled,
             "debug_mode": self.debug_mode,
             "scraper_schedule": self.scraper_schedule,
+            "admin_secret_param": self.admin_secret_param,
         }
 
     @property
@@ -68,6 +70,7 @@ def get_environment_config(env_name: Optional[str] = None) -> EnvironmentConfig:
             monitoring_enabled=True,
             debug_mode=True,
             scraper_schedule="rate(2 minutes)",  # Less frequent for staging
+            admin_secret_param="/atwood/staging/admin_secret",
         )
     elif env_name == "production":
         return EnvironmentConfig(
@@ -79,6 +82,7 @@ def get_environment_config(env_name: Optional[str] = None) -> EnvironmentConfig:
             monitoring_enabled=True,
             debug_mode=False,
             scraper_schedule="rate(1 minute)",
+            admin_secret_param="/atwood/production/admin_secret",
         )
     else:
         # If an invalid environment is specified, raise an error

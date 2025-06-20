@@ -45,6 +45,9 @@ npx --yes elm make src/Main.elm --output=dist/elm.js --optimize
 
 # Copy public files to dist
 cp -r public/* dist/
+mkdir -p dist/admin
+cp admin/index.html dist/admin/
+sed -i "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" dist/admin/index.html
 
 # Replace API URL in index.html as well
 sed "s|https://b3q0v6btng.execute-api.eu-north-1.amazonaws.com/prod|$API_BASE_URL|g" dist/index.html > dist/index.html.tmp
