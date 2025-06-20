@@ -6,18 +6,13 @@ from constructs import Construct
 from .api_gateway import setup_api_gateway
 from .environments import EnvironmentConfig
 from .frontend import setup_frontend
-from .lambdas import (
-    create_lambda_layer,
-    create_lambda_role,
-    create_register_web_push_lambda,
-    create_scraper_lambda,
-    create_status_lambda,
-    create_subscribe_lambda,
-    create_web_push_lambda,
-    create_admin_stats_lambda,
-    create_admin_delete_lambda,
-    create_admin_authorizer_lambda,
-)
+
+from .lambdas import (create_admin_authorizer_lambda,
+                      create_admin_delete_lambda, create_admin_stats_lambda,
+                      create_lambda_layer, create_lambda_role,
+                      create_register_web_push_lambda, create_scraper_lambda,
+                      create_status_lambda, create_subscribe_lambda,
+                      create_web_push_lambda)
 from .monitoring import setup_dashboard
 from .storage import create_tables
 
@@ -70,7 +65,9 @@ class AtwoodMonitorStack(Stack):
         admin_delete_lambda = create_admin_delete_lambda(
             self, lambda_role, lambda_layer, users_table, web_push_table, env_config
         )
-        admin_auth_lambda = create_admin_authorizer_lambda(self, lambda_role, env_config)
+        admin_auth_lambda = create_admin_authorizer_lambda(
+            self, lambda_role, env_config
+        )
 
         # EventBridge trigger for scraping with environment-specific schedule
         rule = events.Rule(

@@ -1,6 +1,6 @@
+import importlib
 import json
 import os
-import importlib
 import sys
 
 import boto3
@@ -29,7 +29,10 @@ def test_admin_stats_counts():
     ddb.create_table(
         TableName="WebPush",
         KeySchema=[{"AttributeName": "subscription_id", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "subscription_id", "AttributeType": "S"}],
+
+        AttributeDefinitions=[
+            {"AttributeName": "subscription_id", "AttributeType": "S"}
+        ],
         BillingMode="PAY_PER_REQUEST",
     )
     users_table = boto3.resource("dynamodb", region_name="us-east-1").Table("Users")
@@ -60,7 +63,9 @@ def test_admin_delete_user():
     ddb.create_table(
         TableName="WebPush",
         KeySchema=[{"AttributeName": "subscription_id", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "subscription_id", "AttributeType": "S"}],
+        AttributeDefinitions=[
+            {"AttributeName": "subscription_id", "AttributeType": "S"}
+        ],
         BillingMode="PAY_PER_REQUEST",
     )
     table = boto3.resource("dynamodb", region_name="us-east-1").Table("Users")
@@ -74,4 +79,4 @@ def test_admin_delete_user():
     result = mod.lambda_handler(event, None)
     assert result["statusCode"] == 200
     assert "Item" not in table.get_item(Key={"user_id": "a"})
-
+    
