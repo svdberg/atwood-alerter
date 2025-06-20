@@ -8,6 +8,9 @@ echo "🚀 Deploying to Staging Environment"
 # Set environment and region
 export ENVIRONMENT=staging
 export AWS_DEFAULT_REGION=us-west-2
+if [ -n "$ADMIN_SECRET" ]; then
+  aws ssm put-parameter --name "/atwood/staging/admin_secret" --value "$ADMIN_SECRET" --type "SecureString" --overwrite
+fi
 
 # Build the Lambda layer
 echo "📦 Building Lambda layer..."
