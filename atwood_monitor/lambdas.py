@@ -175,3 +175,74 @@ def create_web_push_lambda(
     )
 
     return webpush_lambda
+
+def create_admin_stats_lambda(scope: Construct, role, layer, users_table, web_push_table, env_config: EnvironmentConfig) -> lambda_.Function:
+    fn = lambda_.Function(
+        scope,
+        "AdminStatsLambda",
+        function_name=f"{env_config.resource_name_prefix}-admin-stats",
+        runtime=lambda_.Runtime.PYTHON_3_11,
+        handler="admin_stats.lambda_handler",
+        code=lambda_.Code.from_asset("lambda"),
+        environment={
+            "USERS_TABLE": users_table.table_name,
+            "WEB_PUSH_TABLE": web_push_table.table_name,
+            "ENVIRONMENT": env_config.name,
+            "DEBUG": str(env_config.debug_mode).lower(),
+        },
+        layers=[layer],
+        role=role,
+    )
+    users_table.grant_read_data(fn)
+    web_push_table.grant_read_data(fn)
+    return fn
+
+
+def create_admin_delete_lambda(scope: Construct, role, layer, users_table, web_push_table, env_config: EnvironmentConfig) -> lambda_.Function:
+    fn = lambda_.Function(
+        scope,
+        "AdminDeleteLambda",
+        function_name=f"{env_config.resource_name_prefix}-admin-delete",
+        runtime=lambda_.Runtime.PYTHON_3_11,
+        handler="admin_delete.lambda_handler",
+        code=lambda_.Code.from_asset("lambda"),
+        environment={
+            "USERS_TABLE": users_table.table_name,
+            "WEB_PUSH_TABLE": web_push_table.table_name,
+            "ENVIRONMENT": env_config.name,
+            "DEBUG": str(env_config.debug_mode).lower(),
+        },
+        layers=[layer],
+        role=role,
+    )
+    users_table.grant_write_data(fn)
+    web_push_table.grant_write_data(fn)
+    return fn
+
+
+def create_admin_authorizer_lambda(scope: Construct, role, env_config: EnvironmentConfig) -> lambda_.Function:
+    fn = lambda_.Function(
+        scope,
+        "AdminAuthorizerLambda",
+        function_name=f"{env_config.resource_name_prefix}-admin-authorizer",
+        runtime=lambda_.Runtime.PYTHON_3_11,
+        handler="admin_auth.lambda_handler",
+        code=lambda_.Code.from_asset("lambda"),
+        environment={
+            "ADMIN_SECRET_PARAM": env_config.admin_secret_param,
+            "ENVIRONMENT": env_config.name,
+        },
+        role=role,
+    )
+    secret_arn = (
+        f"arn:aws:ssm:{env_config.region}:{env_config.account}:parameter"
+        f"{env_config.admin_secret_param}"
+    )
+    fn.add_to_role_policy(
+        iam.PolicyStatement(
+            actions=["ssm:GetParameter"],
+            resources=[secret_arn],
+            effect=iam.Effect.ALLOW,
+        )
+    )
+    return fn

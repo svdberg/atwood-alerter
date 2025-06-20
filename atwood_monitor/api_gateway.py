@@ -11,6 +11,9 @@ def setup_api_gateway(
     status_lambda,
     subscribe_lambda,
     register_web_push_lambda,
+    admin_stats_lambda,
+    admin_delete_lambda,
+    admin_auth_lambda,
     env_config: EnvironmentConfig,
 ):
     api = apigateway.LambdaRestApi(
@@ -39,6 +42,25 @@ def setup_api_gateway(
         "POST", apigateway.LambdaIntegration(register_web_push_lambda)
     )
     add_cors_options(web_subscribe_resource, methods="POST,OPTIONS")
+
+    # /admin
+    admin_resource = api.root.add_resource("admin")
+    authorizer = apigateway.TokenAuthorizer(
+        scope, "AdminAuthorizer", handler=admin_auth_lambda
+    )
+    admin_resource.add_method(
+        "GET",
+        apigateway.LambdaIntegration(admin_stats_lambda),
+        authorization_type=apigateway.AuthorizationType.CUSTOM,
+        authorizer=authorizer,
+    )
+    admin_resource.add_method(
+        "DELETE",
+        apigateway.LambdaIntegration(admin_delete_lambda),
+        authorization_type=apigateway.AuthorizationType.CUSTOM,
+        authorizer=authorizer,
+    )
+    add_cors_options(admin_resource, methods="GET,DELETE,OPTIONS")
 
     return api
 
