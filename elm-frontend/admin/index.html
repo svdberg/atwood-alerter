@@ -1,27 +1,72 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <title>Admin Panel</title>
-</head>
-<body>
-  <h1>Admin Panel</h1>
-  <div>
-    <label>Secret: <input id="secret" type="password"></label>
-    <button id="load">Load Stats</button>
-  </div>
-  <pre id="stats"></pre>
-  <h2>Delete Entry</h2>
-  <input id="deleteId" placeholder="Email or subscription id">
-  <button id="deleteBtn">Delete</button>
-  <pre id="result"></pre>
-<script>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="../tailwind.css" />
+  </head>
+  <body class="p-4 bg-gray-50 min-h-screen">
+    <h1 class="text-2xl font-bold mb-4">Admin Panel</h1>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center gap-2">
+      <label class="flex-1">
+        <span class="mr-2">Secret:</span>
+        <input
+          id="secret"
+          type="password"
+          class="border rounded p-2 w-full"
+        />
+      </label>
+      <button
+        id="load"
+        class="bg-blue-600 text-white px-4 py-2 rounded shadow"
+      >
+        Load Stats
+      </button>
+    </div>
+
+    <table class="min-w-full bg-white shadow rounded mb-6">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="text-left py-2 px-4">Metric</th>
+          <th class="text-left py-2 px-4">Count</th>
+        </tr>
+      </thead>
+      <tbody id="statsBody"></tbody>
+    </table>
+
+    <h2 class="text-xl font-semibold mb-2">Delete Entry</h2>
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+      <input
+        id="deleteId"
+        placeholder="Email or subscription id"
+        class="border rounded p-2 flex-1"
+      />
+      <button
+        id="deleteBtn"
+        class="bg-red-600 text-white px-4 py-2 rounded shadow"
+      >
+        Delete
+      </button>
+    </div>
+    <pre id="result" class="bg-gray-100 p-2 rounded"></pre>
+
+    <script>
 const API_BASE_URL = 'API_BASE_URL_PLACEHOLDER';
 
 document.getElementById('load').onclick = async () => {
   const secret = document.getElementById('secret').value;
-  const res = await fetch(`${API_BASE_URL}/admin`, {headers: {Authorization: secret}});
-  document.getElementById('stats').textContent = await res.text();
+  const res = await fetch(`${API_BASE_URL}/admin`, {
+    headers: { Authorization: secret },
+  });
+  const data = await res.json();
+  const rows = Object.entries(data)
+    .map(
+      ([key, val]) =>
+        `<tr><td class="py-2 px-4 font-medium">${key}</td><td class="py-2 px-4">${val}</td></tr>`
+    )
+    .join('');
+  document.getElementById('statsBody').innerHTML = rows;
 };
 
 document.getElementById('deleteBtn').onclick = async () => {
@@ -35,5 +80,5 @@ document.getElementById('deleteBtn').onclick = async () => {
   document.getElementById('result').textContent = await res.text();
 };
 </script>
-</body>
+  </body>
 </html>
