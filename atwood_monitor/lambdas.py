@@ -176,7 +176,7 @@ def create_web_push_lambda(
 
     return webpush_lambda
 
-  
+
 def create_admin_stats_lambda(
     scope: Construct,
     role,

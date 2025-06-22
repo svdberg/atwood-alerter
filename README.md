@@ -134,6 +134,12 @@ Pull requests and issues are welcome. For major changes, please open an issue fi
 
 ---
 
+## 🛠️ Git Hooks
+
+Run `./scripts/install-git-hooks.sh` once to install local git hooks. The `pre-commit` hook formats Python files using **black** and **isort** before they are committed. This keeps commits passing the CI formatting checks.
+
+---
+
 ## 📄 License
 
 MIT — see `LICENSE` file.

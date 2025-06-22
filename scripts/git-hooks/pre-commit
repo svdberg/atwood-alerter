@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-commit hook to format Python files before committing
+
+BLACK_EXCLUDES="(out|cdk\.out|elm-frontend/node_modules)"
+
+if command -v black >/dev/null 2>&1 && command -v isort >/dev/null 2>&1; then
+    echo "Running black and isort..."
+    black . --exclude="$BLACK_EXCLUDES"
+    isort . --profile black
+    git add -A
+else
+    echo "Black or isort not installed; skipping formatting" >&2
+fi
+
+exit 0
