@@ -15,3 +15,4 @@ cdk.context.json
 # Elm generated files
 elm-frontend/elm-stuff/
 elm-frontend/node_modules/
+elm-frontend/dist/
