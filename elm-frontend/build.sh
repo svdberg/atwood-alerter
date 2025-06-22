@@ -102,6 +102,7 @@ npx --yes elm make src/Main.elm --output=dist/elm.js --optimize
 cp -r public/* dist/
 mkdir -p dist/admin
 cp admin/index.html dist/admin/
+sed -i '' "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" dist/admin/index.html
 
 # Build Tailwind CSS
 npm run build
