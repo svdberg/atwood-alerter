@@ -89,14 +89,8 @@ fi
 echo "Using API URL: $API_BASE_URL"
 
 # Generate Config.elm from template with the correct API URL
-if [ -f src/Config.elm.template ]; then
-  cp src/Config.elm.template src/Config.elm.backup
-  sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" src/Config.elm.template > src/Config.elm
-else
-  # Fallback: create Config.elm directly if template doesn't exist
-  cp src/Config.elm src/Config.elm.backup
-  sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" src/Config.elm.backup > src/Config.elm
-fi
+cp src/Config.elm.template src/Config.elm.backup
+cat src/Config.elm.template | sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" > src/Config.elm
 
 # Generate Elm Tailwind modules
 npx elm-tailwind-modules --dir src
@@ -108,11 +102,6 @@ npx --yes elm make src/Main.elm --output=dist/elm.js --optimize
 cp -r public/* dist/
 mkdir -p dist/admin
 cp admin/index.html dist/admin/
-sed -i '' "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" dist/admin/index.html
-
-# Replace API URL in index.html as well
-sed "s|https://b3q0v6btng.execute-api.eu-north-1.amazonaws.com/prod|$API_BASE_URL|g" dist/index.html > dist/index.html.tmp
-mv dist/index.html.tmp dist/index.html
 
 # Build Tailwind CSS
 npm run build
