@@ -51,19 +51,25 @@ esac
 if [ -n "$API_BASE_URL" ]; then
   echo "Using API URL from environment variable: $API_BASE_URL"
 else
-  echo "Fetching API Gateway URL from CloudFormation stack: $STACK_NAME"
-  API_BASE_URL=$(aws cloudformation describe-stacks \
-    --stack-name "$STACK_NAME" \
-    --region "$AWS_REGION" \
-    --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
-    --output text 2>/dev/null)
+  # Check if AWS CLI is available and configured
+  if command -v aws >/dev/null 2>&1 && aws sts get-caller-identity >/dev/null 2>&1; then
+    echo "Fetching API Gateway URL from CloudFormation stack: $STACK_NAME"
+    API_BASE_URL=$(aws cloudformation describe-stacks \
+      --stack-name "$STACK_NAME" \
+      --region "$AWS_REGION" \
+      --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+      --output text 2>/dev/null)
+  else
+    echo "AWS CLI not available or not configured. Using placeholder URL for CI/CD builds."
+    API_BASE_URL=""
+  fi
 fi
 
 if [ -z "$API_BASE_URL" ] || [ "$API_BASE_URL" = "None" ]; then
   echo "Warning: Could not fetch API Gateway URL from stack $STACK_NAME"
-  echo "Stack may not be deployed yet. Using placeholder URL for CI/CD builds."
+  echo "Using placeholder URL for CI/CD builds."
   
-  # Use placeholder URLs for CI/CD builds when stack doesn't exist yet
+  # Use placeholder URLs for CI/CD builds when stack doesn't exist yet or AWS not available
   case $ENVIRONMENT in
     production)
       API_BASE_URL="https://placeholder-prod-api.execute-api.eu-north-1.amazonaws.com/prod"
@@ -82,9 +88,15 @@ fi
 
 echo "Using API URL: $API_BASE_URL"
 
-# Create a copy of Config.elm with the correct API URL
-cp src/Config.elm src/Config.elm.backup
-sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" src/Config.elm.backup > src/Config.elm
+# Generate Config.elm from template with the correct API URL
+if [ -f src/Config.elm.template ]; then
+  cp src/Config.elm.template src/Config.elm.backup
+  sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" src/Config.elm.template > src/Config.elm
+else
+  # Fallback: create Config.elm directly if template doesn't exist
+  cp src/Config.elm src/Config.elm.backup
+  sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" src/Config.elm.backup > src/Config.elm
+fi
 
 # Generate Elm Tailwind modules
 npx elm-tailwind-modules --dir src
@@ -106,7 +118,14 @@ mv dist/index.html.tmp dist/index.html
 npm run build
 
 # Restore original Config.elm
-mv src/Config.elm.backup src/Config.elm
+if [ -f src/Config.elm.template ]; then
+  # If using template, restore from template
+  cp src/Config.elm.template src/Config.elm
+  rm -f src/Config.elm.backup
+else
+  # If not using template, restore from backup
+  mv src/Config.elm.backup src/Config.elm
+fi
 
 echo "Build complete! Output is in dist/"
 echo "API URL configured: $API_BASE_URL"
