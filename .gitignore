@@ -16,3 +16,4 @@ cdk.context.json
 elm-frontend/elm-stuff/
 elm-frontend/node_modules/
 elm-frontend/dist/
+elm-frontend/.npmrc
