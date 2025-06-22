@@ -6,13 +6,18 @@ from constructs import Construct
 from .api_gateway import setup_api_gateway
 from .environments import EnvironmentConfig
 from .frontend import setup_frontend
-
-from .lambdas import (create_admin_authorizer_lambda,
-                      create_admin_delete_lambda, create_admin_stats_lambda,
-                      create_lambda_layer, create_lambda_role,
-                      create_register_web_push_lambda, create_scraper_lambda,
-                      create_status_lambda, create_subscribe_lambda,
-                      create_web_push_lambda)
+from .lambdas import (
+    create_admin_authorizer_lambda,
+    create_admin_delete_lambda,
+    create_admin_stats_lambda,
+    create_lambda_layer,
+    create_lambda_role,
+    create_register_web_push_lambda,
+    create_scraper_lambda,
+    create_status_lambda,
+    create_subscribe_lambda,
+    create_web_push_lambda,
+)
 from .monitoring import setup_dashboard
 from .storage import create_tables
 
