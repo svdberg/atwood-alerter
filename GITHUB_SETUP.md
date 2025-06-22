@@ -49,6 +49,8 @@ gh secret list
 ./scripts/test-iam-users.sh
 ```
 
+> **Note**: The repository must enable **Allow GitHub Actions to create and approve pull requests** under **Settings → Actions → General → Workflow permissions**.
+
 ## 📋 Required Secrets Summary
 
 | Secret Name | Purpose | Status |
