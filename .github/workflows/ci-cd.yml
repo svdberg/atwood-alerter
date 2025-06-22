@@ -292,7 +292,7 @@ jobs:
       - name: Get staging API URL and rebuild frontend
         run: |
           # Extract API URL from CDK outputs and remove trailing slash
-          API_URL=$(python -c "
+          API_BASE_URL=$(python -c "
           import json
           with open('staging-outputs.json', 'r') as f:
               outputs = json.load(f)
@@ -301,12 +301,13 @@ jobs:
               # Remove trailing slash if present
               print(url.rstrip('/'))
           ")
-          echo "Detected staging API URL: $API_URL"
+          echo "Detected staging API URL: $API_BASE_URL"
           
           # Rebuild frontend with correct API URL
           cd elm-frontend
-          sed -i "s|https://api.staging.atwood-sniper.com|$API_URL|g" build.sh
+          npm install
           chmod +x build.sh
+          export API_BASE_URL="$API_BASE_URL"
           ENVIRONMENT=staging ./build.sh
           
           # Redeploy just the frontend with updated API URL
@@ -425,6 +426,36 @@ jobs:
           export AWS_DEFAULT_REGION=${{ env.AWS_REGION_PRODUCTION }}
           cdk deploy --all --require-approval never \
             --outputs-file production-outputs.json
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+      
+      - name: Get production API URL and rebuild frontend
+        run: |
+          # Extract API URL from CDK outputs and remove trailing slash
+          API_BASE_URL=$(python -c "
+          import json
+          with open('production-outputs.json', 'r') as f:
+              outputs = json.load(f)
+              stack_key = next(k for k in outputs.keys() if 'Production' in k)
+              url = outputs[stack_key]['ApiEndpoint']
+              # Remove trailing slash if present
+              print(url.rstrip('/'))
+          ")
+          echo "Detected production API URL: $API_BASE_URL"
+          
+          # Rebuild frontend with correct API URL
+          cd elm-frontend
+          npm install
+          chmod +x build.sh
+          export API_BASE_URL="$API_BASE_URL"
+          ENVIRONMENT=production ./build.sh
+          
+          # Redeploy just the frontend with updated API URL
+          cd ..
+          export ENVIRONMENT=production
+          export AWS_DEFAULT_REGION=${{ env.AWS_REGION_PRODUCTION }}
+          cdk deploy AtwoodMonitor-Production-Main --require-approval never
         env:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}

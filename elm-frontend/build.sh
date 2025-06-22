@@ -47,17 +47,37 @@ case $ENVIRONMENT in
     ;;
 esac
 
-# Get API Gateway URL from CloudFormation stack outputs
-API_BASE_URL=$(aws cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --region "$AWS_REGION" \
-  --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
-  --output text 2>/dev/null)
+# Get API Gateway URL from environment variable (CI/CD) or CloudFormation stack outputs
+if [ -n "$API_BASE_URL" ]; then
+  echo "Using API URL from environment variable: $API_BASE_URL"
+else
+  echo "Fetching API Gateway URL from CloudFormation stack: $STACK_NAME"
+  API_BASE_URL=$(aws cloudformation describe-stacks \
+    --stack-name "$STACK_NAME" \
+    --region "$AWS_REGION" \
+    --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+    --output text 2>/dev/null)
+fi
 
 if [ -z "$API_BASE_URL" ] || [ "$API_BASE_URL" = "None" ]; then
-  echo "Error: Could not fetch API Gateway URL from stack $STACK_NAME"
-  echo "Make sure the stack is deployed and has an 'ApiEndpoint' output"
-  exit 1
+  echo "Warning: Could not fetch API Gateway URL from stack $STACK_NAME"
+  echo "Stack may not be deployed yet. Using placeholder URL for CI/CD builds."
+  
+  # Use placeholder URLs for CI/CD builds when stack doesn't exist yet
+  case $ENVIRONMENT in
+    production)
+      API_BASE_URL="https://placeholder-prod-api.execute-api.eu-north-1.amazonaws.com/prod"
+      ;;
+    staging)
+      API_BASE_URL="https://placeholder-staging-api.execute-api.us-west-2.amazonaws.com/prod"
+      ;;
+    *)
+      API_BASE_URL="https://placeholder-staging-api.execute-api.us-west-2.amazonaws.com/prod"
+      ;;
+  esac
+  
+  echo "Using placeholder API URL for initial build: $API_BASE_URL"
+  echo "This will be updated after deployment when the real API URL is available."
 fi
 
 echo "Using API URL: $API_BASE_URL"
