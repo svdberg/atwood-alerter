@@ -86,6 +86,9 @@ if [ -z "$API_BASE_URL" ] || [ "$API_BASE_URL" = "None" ]; then
   echo "This will be updated after deployment when the real API URL is available."
 fi
 
+# Remove trailing slash from API_BASE_URL to avoid double slashes
+API_BASE_URL=$(echo "$API_BASE_URL" | sed 's:/*$::')
+
 echo "Using API URL: $API_BASE_URL"
 
 # Generate Config.elm from template with the correct API URL
@@ -102,7 +105,13 @@ npx --yes elm make src/Main.elm --output=dist/elm.js --optimize
 cp -r public/* dist/
 mkdir -p dist/admin
 cp admin/index.html dist/admin/
-sed -i '' "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" dist/admin/index.html
+# Replace API URL in admin/index.html (portable across macOS and Linux)
+cat dist/admin/index.html | sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" > dist/admin/index.html.tmp
+mv dist/admin/index.html.tmp dist/admin/index.html
+
+# Replace API URL in index.html (portable across macOS and Linux)
+cat dist/index.html | sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" > dist/index.html.tmp
+mv dist/index.html.tmp dist/index.html
 
 # Build Tailwind CSS
 npm run build

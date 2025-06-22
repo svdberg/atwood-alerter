@@ -52,7 +52,7 @@
     console.log('Push subscription:', JSON.stringify(sub));
 
     // TODO: Send to your backend via fetch
-    await fetch('https://b3q0v6btng.execute-api.eu-north-1.amazonaws.com/prod/register-subscription', {
+    await fetch('API_BASE_URL_PLACEHOLDER' + '/register-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sub)
