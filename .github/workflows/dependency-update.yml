@@ -9,7 +9,7 @@ on:
 permissions:
   issues: write
   pull-requests: write
-  contents: read
+  contents: write
 
 jobs:
   dependency-audit:
