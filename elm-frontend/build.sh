@@ -13,23 +13,52 @@ rm -rf dist/*
 # Create dist directory if it doesn't exist
 mkdir -p dist
 
-# Set API URL based on environment
-# Note: These URLs should be updated with actual deployed API Gateway URLs
+# Dynamically get API URL from CloudFormation stack outputs
+# Set stack name based on environment
 case $ENVIRONMENT in
   production)
-    API_BASE_URL="https://b3q0v6btng.execute-api.eu-north-1.amazonaws.com/prod"
+    STACK_NAME="AtwoodMonitor-Production-Main"
     ;;
   staging)
-    # This is a placeholder - should be updated with actual staging API Gateway URL
-    # The actual URL will be available after first staging deployment
-    API_BASE_URL="https://api.staging.atwood-sniper.com"
+    STACK_NAME="AtwoodMonitor-Staging-Main"
     ;;
   *)
     echo "Unknown environment: $ENVIRONMENT"
-    echo "Defaulting to staging API"
-    API_BASE_URL="https://api.staging.atwood-sniper.com"
+    echo "Defaulting to staging"
+    STACK_NAME="AtwoodMonitor-Staging-Main"
     ;;
 esac
+
+echo "Fetching API Gateway URL from CloudFormation stack: $STACK_NAME"
+
+# Set the correct region based on environment
+case $ENVIRONMENT in
+  production)
+    AWS_REGION="eu-north-1"
+    ;;
+  staging)
+    AWS_REGION="us-west-2"
+    ;;
+  *)
+    echo "Unknown environment: $ENVIRONMENT"
+    echo "Defaulting to staging"
+    AWS_REGION="us-west-2"
+    STACK_NAME="AtwoodMonitor-Staging-Main"
+    ;;
+esac
+
+# Get API Gateway URL from CloudFormation stack outputs
+API_BASE_URL=$(aws cloudformation describe-stacks \
+  --stack-name "$STACK_NAME" \
+  --region "$AWS_REGION" \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+  --output text 2>/dev/null)
+
+if [ -z "$API_BASE_URL" ] || [ "$API_BASE_URL" = "None" ]; then
+  echo "Error: Could not fetch API Gateway URL from stack $STACK_NAME"
+  echo "Make sure the stack is deployed and has an 'ApiEndpoint' output"
+  exit 1
+fi
 
 echo "Using API URL: $API_BASE_URL"
 
@@ -47,7 +76,7 @@ npx --yes elm make src/Main.elm --output=dist/elm.js --optimize
 cp -r public/* dist/
 mkdir -p dist/admin
 cp admin/index.html dist/admin/
-sed -i "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" dist/admin/index.html
+sed -i '' "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" dist/admin/index.html
 
 # Replace API URL in index.html as well
 sed "s|https://b3q0v6btng.execute-api.eu-north-1.amazonaws.com/prod|$API_BASE_URL|g" dist/index.html > dist/index.html.tmp
