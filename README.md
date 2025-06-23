@@ -73,7 +73,7 @@ cdk deploy
 
 ```bash
 cd elm-frontend
-npm install
+npm ci
 ./build.sh  # builds Elm and Tailwind CSS
 ```
 
