@@ -44,7 +44,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: elm-frontend
-        run: npm install
+        run: npm ci
 
       - name: Build out layer
         run: ./build-layer-with-docker.sh

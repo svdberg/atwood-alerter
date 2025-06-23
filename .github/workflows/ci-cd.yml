@@ -129,7 +129,7 @@ jobs:
       - name: Install frontend dependencies
         if: matrix.component == 'frontend'
         working-directory: elm-frontend
-        run: npm install
+        run: npm ci
       
       - name: Build Elm frontend
         if: matrix.component == 'frontend'
@@ -278,7 +278,7 @@ jobs:
       - name: Rebuild frontend for staging
         working-directory: elm-frontend
         run: |
-          npm install
+          npm ci
           chmod +x build.sh
           ENVIRONMENT=staging ./build.sh
       
@@ -389,7 +389,7 @@ jobs:
       - name: Rebuild frontend for production
         working-directory: elm-frontend
         run: |
-          npm install
+          npm ci
           chmod +x build.sh
           ENVIRONMENT=production ./build.sh
       
