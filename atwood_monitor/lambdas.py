@@ -174,6 +174,19 @@ def create_web_push_lambda(
         )
     )
 
+    # Add SSM permissions for VAPID private key access
+    webpush_lambda.add_to_role_policy(
+        iam.PolicyStatement(
+            actions=["ssm:GetParameter"],
+            resources=[
+                f"arn:aws:ssm:*:*:parameter/atwood/vapid_private_key",
+                f"arn:aws:ssm:*:*:parameter/atwood/staging/vapid_private_key"
+            ],
+            effect=iam.Effect.ALLOW,
+        )
+    )
+
+
     return webpush_lambda
 
 
