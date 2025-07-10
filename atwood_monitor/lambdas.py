@@ -145,7 +145,7 @@ def create_register_web_push_lambda(
 
 
 def create_web_push_lambda(
-    scope: Construct, web_push_table, web_notify_topic, env_config: EnvironmentConfig
+    scope: Construct, web_push_table, notify_topic, env_config: EnvironmentConfig
 ) -> lambda_.DockerImageFunction:
     webpush_lambda = lambda_.DockerImageFunction(
         scope,
@@ -164,7 +164,7 @@ def create_web_push_lambda(
 
     web_push_table.grant_read_write_data(webpush_lambda)
 
-    web_notify_topic.add_subscription(subscriptions.LambdaSubscription(webpush_lambda))
+    notify_topic.add_subscription(subscriptions.LambdaSubscription(webpush_lambda))
 
     webpush_lambda.add_to_role_policy(
         iam.PolicyStatement(
@@ -180,13 +180,11 @@ def create_web_push_lambda(
             actions=["ssm:GetParameter"],
             resources=[
                 f"arn:aws:ssm:*:*:parameter/atwood/vapid_private_key",
-                f"arn:aws:ssm:*:*:parameter/atwood/staging/vapid_private_key"
+                f"arn:aws:ssm:*:*:parameter/atwood/staging/vapid_private_key",
             ],
             effect=iam.Effect.ALLOW,
         )
     )
-
-
     return webpush_lambda
 
 

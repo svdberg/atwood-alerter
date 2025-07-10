@@ -36,8 +36,8 @@ class AtwoodMonitorStack(Stack):
         self.env_config = env_config
 
         # DynamoDB and SNS setup
-        posts_table, users_table, web_push_table, notify_topic, web_notify_topic = (
-            create_tables(self, env_config)
+        posts_table, users_table, web_push_table, notify_topic = create_tables(
+            self, env_config
         )
 
         # Lambda functions
@@ -59,7 +59,7 @@ class AtwoodMonitorStack(Stack):
             self, lambda_role, lambda_layer, users_table, notify_topic, env_config
         )
         webpush_lambda = create_web_push_lambda(
-            self, web_push_table, web_notify_topic, env_config
+            self, web_push_table, notify_topic, env_config
         )
         register_web_push_lambda = create_register_web_push_lambda(
             self, lambda_role, web_push_table, env_config

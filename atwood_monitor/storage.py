@@ -60,11 +60,4 @@ def create_tables(scope: Construct, env_config: EnvironmentConfig):
         topic_name=f"{env_config.resource_name_prefix}-notifications",
     )
 
-    web_notify_topic = sns.Topic(
-        scope,
-        "WebNotifyTopic",
-        display_name=f"Atwood Web Push Notifications ({env_config.name.title()})",
-        topic_name=f"{env_config.resource_name_prefix}-web-notifications",
-    )
-
-    return posts_table, users_table, web_push_table, notify_topic, web_notify_topic
+    return posts_table, users_table, web_push_table, notify_topic
