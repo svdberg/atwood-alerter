@@ -12,7 +12,7 @@ bandit>=1.7.0
 # Testing
 pytest>=7.4.0
 pytest-cov>=4.1.0
-moto>=4.2.0
+moto>=5.2.2
 
 # Lambda dependencies (for local development)
 boto3
