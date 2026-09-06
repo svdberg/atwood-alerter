@@ -5,4 +5,4 @@ module Config exposing (apiBaseUrl)
 
 apiBaseUrl : String
 apiBaseUrl =
-    "https://placeholder-staging-api.execute-api.us-west-2.amazonaws.com/prod"
+    "API_BASE_URL_PLACEHOLDER"
