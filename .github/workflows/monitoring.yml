@@ -26,22 +26,27 @@ jobs:
           - environment: staging
             domain: staging.atwood-sniper.com
             region: us-west-2
-            aws_access_key: AWS_ACCESS_KEY_ID_STAGING
-            aws_secret_key: AWS_SECRET_ACCESS_KEY_STAGING
           - environment: production
             domain: atwood-sniper.com
             region: eu-north-1
-            aws_access_key: AWS_ACCESS_KEY_ID_PROD
-            aws_secret_key: AWS_SECRET_ACCESS_KEY_PROD
     
     steps:
       - uses: actions/checkout@v5
       
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (staging)
+        if: matrix.environment == 'staging'
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets[matrix.aws_access_key] }}
-          aws-secret-access-key: ${{ secrets[matrix.aws_secret_key] }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws-region: ${{ matrix.region }}
+
+      - name: Configure AWS credentials (production)
+        if: matrix.environment == 'production'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
           aws-region: ${{ matrix.region }}
       
       - name: Get API endpoint
