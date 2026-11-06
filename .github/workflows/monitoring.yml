@@ -35,7 +35,7 @@ jobs:
             aws_secret_key: AWS_SECRET_ACCESS_KEY_PROD
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -185,7 +185,7 @@ jobs:
     if: always()
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Download health reports
         uses: actions/download-artifact@v4
