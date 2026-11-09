@@ -178,7 +178,7 @@ jobs:
           cat health-report-${{ matrix.environment }}.json
       
       - name: Upload health report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: health-report-${{ matrix.environment }}
           path: health-report-${{ matrix.environment }}.json

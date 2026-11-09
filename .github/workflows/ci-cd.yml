@@ -164,7 +164,7 @@ jobs:
       # Upload artifacts
       - name: Upload backend artifacts
         if: matrix.component == 'backend'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-build
           path: |
@@ -177,7 +177,7 @@ jobs:
       
       - name: Upload frontend artifacts
         if: matrix.component == 'frontend'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-build
           path: elm-frontend/
@@ -296,7 +296,7 @@ jobs:
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
       
       - name: Upload staging outputs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: staging-outputs
           path: staging-outputs.json
