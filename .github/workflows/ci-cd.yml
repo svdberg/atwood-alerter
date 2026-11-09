@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v5
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
@@ -82,7 +82,7 @@ jobs:
       
       - name: Set up Python (Backend)
         if: matrix.component == 'backend'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
@@ -213,7 +213,7 @@ jobs:
           ls -la elm-frontend/dist/ || echo "elm-frontend/dist/ directory not found"
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
@@ -263,7 +263,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION_STAGING }}
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
@@ -317,7 +317,7 @@ jobs:
           name: staging-outputs
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
@@ -374,7 +374,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION_PRODUCTION }}
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       
