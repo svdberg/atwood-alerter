@@ -15,6 +15,7 @@ const [distDir = "dist", outDir = "screenshots/out"] = process.argv.slice(2);
 const ORIGIN = "http://localhost:4173";
 const here = fileURLToPath(new URL(".", import.meta.url));
 const status = await readFile(join(here, "fixtures", "status.json"), "utf8");
+const admin = await readFile(join(here, "fixtures", "admin.json"), "utf8");
 
 const TYPES = {
   ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
@@ -39,6 +40,15 @@ const SCENARIOS = [
       return page.getByRole("dialog").waitFor({ timeout: 3000 }).then(() => true, () => false);
     },
   },
+  {
+    name: "admin",
+    path: "/admin/index.html",
+    run: async (page) => {
+      await page.getByLabel("Admin secret").fill("fixture-secret");
+      await page.getByRole("button", { name: "Log in" }).click();
+      return page.getByRole("heading", { name: "Admin", exact: true }).waitFor({ timeout: 3000 }).then(() => true, () => false);
+    },
+  },
 ];
 
 async function route(r) {
@@ -46,6 +56,9 @@ async function route(r) {
   if (url.origin !== ORIGIN) return r.abort(); // no external network: deterministic shots
   if (url.pathname.startsWith("/api/status")) {
     return r.fulfill({ contentType: "application/json", body: status });
+  }
+  if (url.pathname === "/api/admin" && r.request().method() === "GET") {
+    return r.fulfill({ contentType: "application/json", body: admin });
   }
   if (url.pathname.startsWith("/api/")) {
     return r.fulfill({ contentType: "application/json", body: '{"message":"ok"}' });
@@ -73,7 +86,7 @@ for (const vp of VIEWPORTS) {
     const page = await context.newPage();
     page.on("pageerror", (e) => errors.push(`${vp.name}/${sc.name}: ${e.message}`));
     await page.route("**/*", route);
-    await page.goto(ORIGIN + "/", { waitUntil: "networkidle" });
+    await page.goto(ORIGIN + (sc.path ?? "/"), { waitUntil: "networkidle" });
     if (await sc.run(page)) {
       await page.waitForTimeout(300); // let transitions settle
       const file = `${vp.name}-${sc.name}.png`;

@@ -11,9 +11,11 @@ from dynamo import (
     is_new_post,
     is_table_empty,
     post_table_name,
+    record_notification,
     save_metadata,
     save_post,
 )
+from stats import count_email_subscriptions
 
 # Constants
 BLOG_FEED_URL = "https://atwoodknives.blogspot.com/feeds/posts/default?alt=rss"
@@ -165,3 +167,10 @@ def notify_subscribers(post):
         print("Notification sent.")
     except Exception as e:
         print(f"Failed to send notification: {e}")
+        return
+
+    try:
+        confirmed, _ = count_email_subscriptions(sns, notify_topic_arn)
+        record_notification(confirmed, datetime.now(timezone.utc))
+    except Exception as e:
+        print(f"Failed to record notification stats: {e}")

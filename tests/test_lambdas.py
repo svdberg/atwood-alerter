@@ -157,3 +157,108 @@ def test_extract_image_from_entry():
 
     entry = Entry(media_content=[{"url": "http://img.test/img.jpg"}])
     assert lambda_function.extract_image_from_entry(entry) == "http://img.test/img.jpg"
+
+
+def _scraper_env():
+    ddb = boto3.client("dynamodb", region_name="us-east-1")
+    ddb.create_table(
+        TableName="Posts",
+        KeySchema=[{"AttributeName": "post_id", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "post_id", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    sns = boto3.client("sns", region_name="us-east-1")
+    topic_arn = sns.create_topic(Name="Notify")["TopicArn"]
+    sns.subscribe(TopicArn=topic_arn, Protocol="email", Endpoint="a@example.com")
+    sns.subscribe(TopicArn=topic_arn, Protocol="email", Endpoint="b@example.com")
+    os.environ["POSTS_TABLE"] = "Posts"
+    os.environ["NOTIFY_TOPIC_ARN"] = topic_arn
+    reload_module("dynamo")
+    mod = reload_module("lambda_function")
+    return mod, boto3.resource("dynamodb", region_name="us-east-1").Table("Posts")
+
+
+POST = {"title": "T", "url": "https://example.com/p"}
+
+
+@mock_aws
+def test_notify_subscribers_records_stats():
+    from datetime import datetime, timezone
+
+    mod, posts = _scraper_env()
+    # Pending subscriptions and the lambda subscription must not be counted.
+    real = mod.sns.list_subscriptions_by_topic
+
+    def with_pending(**kwargs):
+        resp = real(**kwargs)
+        resp["Subscriptions"].append(
+            {"Protocol": "email", "SubscriptionArn": "PendingConfirmation"}
+        )
+        resp["Subscriptions"].append(
+            {"Protocol": "lambda", "SubscriptionArn": "arn:aws:sns:x:1:t:abc"}
+        )
+        return resp
+
+    mod.sns.list_subscriptions_by_topic = with_pending
+    try:
+        mod.notify_subscribers(POST)
+        mod.notify_subscribers(POST)
+    finally:
+        mod.sns.list_subscriptions_by_topic = real
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    item = posts.get_item(Key={"post_id": f"__stats__#{month}"})["Item"]
+    assert item["posts_announced"] == 2
+    assert item["email_recipients"] == 4
+    assert item["last_sent"]
+
+
+@mock_aws
+def test_notify_subscribers_publish_failure_writes_nothing():
+    mod, posts = _scraper_env()
+
+    def boom(**kwargs):
+        raise RuntimeError("publish failed")
+
+    real = mod.sns.publish
+    mod.sns.publish = boom
+    try:
+        mod.notify_subscribers(POST)
+    finally:
+        mod.sns.publish = real
+    assert posts.scan()["Items"] == []
+
+
+@mock_aws
+def test_notify_subscribers_swallows_stats_failure(monkeypatch):
+    mod, posts = _scraper_env()
+    published = []
+    real = mod.sns.publish
+
+    def spy(**kwargs):
+        published.append(kwargs)
+        return real(**kwargs)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("ddb down")
+
+    mod.sns.publish = spy
+    monkeypatch.setattr(mod, "record_notification", boom)
+    try:
+        mod.notify_subscribers(POST)
+    finally:
+        mod.sns.publish = real
+    assert len(published) == 1
+
+
+@mock_aws
+def test_record_notification_increments_month():
+    from datetime import datetime, timezone
+
+    _, posts = _scraper_env()
+    dynamo = sys.modules["dynamo"]
+    dynamo.record_notification(3, datetime(2026, 11, 1, tzinfo=timezone.utc))
+    dynamo.record_notification(2, datetime(2026, 11, 30, tzinfo=timezone.utc))
+    item = posts.get_item(Key={"post_id": "__stats__#2026-11"})["Item"]
+    assert item["posts_announced"] == 2
+    assert item["email_recipients"] == 5
+    assert item["last_sent"].startswith("2026-11-30")

@@ -1,0 +1,102 @@
+{
+  "users": 38,
+  "web_push": 14,
+  "subscribers": {
+    "email_confirmed": 30,
+    "email_pending": 4,
+    "web_push": 14
+  },
+  "notifications": {
+    "posts_announced": 8,
+    "email_recipients": 66,
+    "push_success": 21,
+    "push_failure": 2,
+    "last_sent": "2026-11-10T18:07:00+00:00"
+  },
+  "monthly": [
+    {
+      "month": "2025-12",
+      "posts_announced": 0,
+      "email_recipients": 0,
+      "push_success": 0,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-01",
+      "posts_announced": 1,
+      "email_recipients": 8,
+      "push_success": 2,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-02",
+      "posts_announced": 0,
+      "email_recipients": 0,
+      "push_success": 0,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-03",
+      "posts_announced": 0,
+      "email_recipients": 0,
+      "push_success": 0,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-04",
+      "posts_announced": 2,
+      "email_recipients": 12,
+      "push_success": 3,
+      "push_failure": 1
+    },
+    {
+      "month": "2026-05",
+      "posts_announced": 0,
+      "email_recipients": 0,
+      "push_success": 0,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-06",
+      "posts_announced": 0,
+      "email_recipients": 0,
+      "push_success": 0,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-07",
+      "posts_announced": 1,
+      "email_recipients": 6,
+      "push_success": 2,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-08",
+      "posts_announced": 0,
+      "email_recipients": 0,
+      "push_success": 0,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-09",
+      "posts_announced": 1,
+      "email_recipients": 10,
+      "push_success": 4,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-10",
+      "posts_announced": 0,
+      "email_recipients": 0,
+      "push_success": 0,
+      "push_failure": 0
+    },
+    {
+      "month": "2026-11",
+      "posts_announced": 3,
+      "email_recipients": 30,
+      "push_success": 10,
+      "push_failure": 1
+    }
+  ]
+}

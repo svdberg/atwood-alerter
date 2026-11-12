@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import boto3
 
@@ -57,3 +57,19 @@ def is_table_empty(table):
 
 def post_table_name():
     return posts_table
+
+
+def record_notification(email_recipients: int, now: datetime | None = None) -> None:
+    """Increment the monthly notification counter (UTC month of ``now``)."""
+    now = now or datetime.now(timezone.utc)
+    posts_table.update_item(
+        Key={"post_id": f"__stats__#{now.strftime('%Y-%m')}"},
+        UpdateExpression=(
+            "ADD posts_announced :one, email_recipients :n SET last_sent = :now"
+        ),
+        ExpressionAttributeValues={
+            ":one": 1,
+            ":n": email_recipients,
+            ":now": now.isoformat(),
+        },
+    )
