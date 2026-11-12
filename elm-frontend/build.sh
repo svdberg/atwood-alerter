@@ -105,6 +105,8 @@ npx elm-tailwind-modules --dir src
 
 # Compile Elm code
 npx --yes elm make src/Main.elm --output=dist/elm.js --optimize
+mkdir -p dist/admin
+npx --yes elm make src/Admin.elm --output=dist/admin/admin.js --optimize
 
 # Copy public files to dist
 cp -r public/* dist/

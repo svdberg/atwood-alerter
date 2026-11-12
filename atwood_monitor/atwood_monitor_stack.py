@@ -65,7 +65,14 @@ class AtwoodMonitorStack(Stack):
             self, lambda_role, web_push_table, env_config
         )
         admin_stats_lambda = create_admin_stats_lambda(
-            self, lambda_role, lambda_layer, users_table, web_push_table, env_config
+            self,
+            lambda_role,
+            lambda_layer,
+            users_table,
+            web_push_table,
+            posts_table,
+            notify_topic,
+            env_config,
         )
         admin_delete_lambda = create_admin_delete_lambda(
             self, lambda_role, lambda_layer, users_table, web_push_table, env_config

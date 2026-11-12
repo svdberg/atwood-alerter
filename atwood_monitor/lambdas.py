@@ -69,6 +69,13 @@ def create_scraper_lambda(
     posts_table.grant_read_write_data(fn)
     users_table.grant_read_data(fn)
     notify_topic.grant_publish(fn)
+    fn.add_to_role_policy(
+        iam.PolicyStatement(
+            actions=["sns:ListSubscriptionsByTopic"],
+            resources=[notify_topic.topic_arn],
+            effect=iam.Effect.ALLOW,
+        )
+    )
     return fn
 
 
@@ -194,6 +201,8 @@ def create_admin_stats_lambda(
     layer,
     users_table,
     web_push_table,
+    posts_table,
+    notify_topic: sns.Topic,
     env_config: EnvironmentConfig,
 ) -> lambda_.Function:
     fn = lambda_.Function(
@@ -206,6 +215,8 @@ def create_admin_stats_lambda(
         environment={
             "USERS_TABLE": users_table.table_name,
             "WEB_PUSH_TABLE": web_push_table.table_name,
+            "POSTS_TABLE": posts_table.table_name,
+            "NOTIFY_TOPIC_ARN": notify_topic.topic_arn,
             "ENVIRONMENT": env_config.name,
             "DEBUG": str(env_config.debug_mode).lower(),
         },
@@ -214,6 +225,21 @@ def create_admin_stats_lambda(
     )
     users_table.grant_read_data(fn)
     web_push_table.grant_read_data(fn)
+    posts_table.grant_read_data(fn)
+    fn.add_to_role_policy(
+        iam.PolicyStatement(
+            actions=["sns:ListSubscriptionsByTopic"],
+            resources=[notify_topic.topic_arn],
+            effect=iam.Effect.ALLOW,
+        )
+    )
+    fn.add_to_role_policy(
+        iam.PolicyStatement(
+            actions=["cloudwatch:GetMetricStatistics"],
+            resources=["*"],
+            effect=iam.Effect.ALLOW,
+        )
+    )
     return fn
 
 
