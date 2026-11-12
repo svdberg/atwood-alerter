@@ -28,7 +28,23 @@ Edit only the spec file.
 ## Mode 2: review (given a branch, after coding)
 
 Review `git diff main...HEAD -- elm-frontend/` against the spec's UX/UI
-section and the checklist above. Report each finding as:
+section and the checklist above.
+
+Then look at the rendered result, not just the code:
+
+```bash
+cd elm-frontend
+API_BASE_URL=http://localhost:4173/api ./build.sh
+npm run screenshots   # writes screenshots/out/{desktop,mobile}-{main,signup-dialog}.png
+```
+
+Open every PNG with Read and check alignment, spacing, overflow (especially
+horizontal overflow on mobile), contrast, and whether the dialog and its states
+look as the spec describes. If the change adds a new screen or state that the
+script doesn't capture, add a scenario to `screenshots/capture.mjs` and
+fixture data in `screenshots/fixtures/`.
+
+Cite the screenshot behind each visual finding. Report each finding as:
 
 `[blocking|non-blocking] file:line: problem → suggested fix`
 

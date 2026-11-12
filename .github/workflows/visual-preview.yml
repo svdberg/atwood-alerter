@@ -1,0 +1,148 @@
+name: Visual Preview
+
+# For PRs that touch the frontend: build main and the PR, screenshot both
+# (desktop + mobile, with and without the signup dialog) against fixture API
+# data, and post a before/after comment on the PR.
+#
+# Two jobs so PR code never runs with write access:
+#   capture  – runs PR code, read-only token, uploads screenshots as an artifact
+#   publish  – runs no PR code; pushes images to the `pr-screenshots` branch and
+#              comments on the PR
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'elm-frontend/**'
+      - '.github/workflows/visual-preview.yml'
+
+concurrency:
+  group: visual-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
+  PREVIEW_API: http://localhost:4173/api
+
+jobs:
+  capture:
+    name: Capture screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v5
+        with:
+          path: head
+
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          path: base
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Elm and Playwright
+        working-directory: head/elm-frontend
+        run: |
+          npm install -g elm
+          npm ci
+          npx playwright install --with-deps chromium
+
+      # Both builds are captured with the PR's script and Playwright install,
+      # so the before/after shots are comparable.
+      - name: Build and capture (PR)
+        working-directory: head/elm-frontend
+        run: |
+          API_BASE_URL=$PREVIEW_API ./build.sh
+          node screenshots/capture.mjs dist ../../shots/after
+
+      - name: Build and capture (main)
+        working-directory: base/elm-frontend
+        continue-on-error: true  # a broken main shouldn't hide the PR's shots
+        run: |
+          npm ci
+          API_BASE_URL=$PREVIEW_API ./build.sh
+          node ../../head/elm-frontend/screenshots/capture.mjs dist ../../shots/before
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots/
+          retention-days: 14
+
+  publish:
+    name: Post screenshots
+    needs: capture
+    # Fork and Dependabot PRs get a read-only token; they keep the artifact only.
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: screenshots
+          path: shots
+
+      - name: Push images to pr-screenshots branch
+        id: push
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          DIR="pr-$PR/${SHA:0:7}"
+          git init -q site && cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          if git fetch -q --depth 1 origin pr-screenshots; then
+            git checkout -q -b pr-screenshots FETCH_HEAD
+          else
+            git checkout -q --orphan pr-screenshots
+          fi
+          mkdir -p "$DIR"
+          cp -r ../shots/* "$DIR/"
+          git add "$DIR"
+          git commit -q -m "Screenshots for #$PR at ${SHA:0:7}"
+          git push -q origin pr-screenshots
+          echo "base=https://raw.githubusercontent.com/${{ github.repository }}/pr-screenshots/$DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        env:
+          BASE_URL: ${{ steps.push.outputs.base }}
+        with:
+          script: |
+            const fs = require('fs');
+            const read = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return { shots: [], errors: [] }; } };
+            const before = read('shots/before/manifest.json');
+            const after = read('shots/after/manifest.json');
+            const base = process.env.BASE_URL;
+            const sha = context.payload.pull_request.head.sha.slice(0, 7);
+            const img = (side, f, list) => list.includes(f) ? `<img src="${base}/${side}/${f}" width="360">` : '_n/a_';
+            const names = [...new Set([...before.shots, ...after.shots])];
+            const rows = names.map(f =>
+              `| **${f.replace('.png', '')}** | ${img('before', f, before.shots)} | ${img('after', f, after.shots)} |`
+            ).join('\n');
+            const errs = after.errors.length
+              ? `\n\n⚠️ **JavaScript errors in this PR's build:**\n${after.errors.map(e => '- `' + e + '`').join('\n')}`
+              : '';
+            const marker = '<!-- visual-preview -->';
+            const body = `${marker}\n## 🖼️ Visual preview (${sha})\n\nRendered with fixture data (\`elm-frontend/screenshots/fixtures\`), not live data.\n\n| Screen | Before (main) | After (this PR) |\n|---|---|---|\n${rows}${errs}\n\n<sub>Full-size images: [workflow artifact](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})</sub>`;
+            const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number, per_page: 100 });
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }

@@ -46,8 +46,18 @@ cd elm-frontend && npm ci
 npx elm-format --validate src/      # or `npx elm-format --yes src/` to fix
 ```
 
-`elm-frontend/build.sh` and `cdk synth` need AWS credentials and are not
-available to agents. CI covers them; don't try to run them.
+Build and screenshot the frontend without AWS, using fixture API data:
+
+```bash
+cd elm-frontend
+API_BASE_URL=http://localhost:4173/api ./build.sh
+npx playwright install chromium     # once
+npm run screenshots                 # → screenshots/out/*.png
+```
+
+`cdk synth` and real deploys need AWS credentials and aren't available to
+agents. CI covers them; don't try to run them. Every PR that touches
+`elm-frontend/` gets before/after screenshots posted by `visual-preview.yml`.
 
 ## Conventions
 
