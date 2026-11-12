@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import boto3
 import feedparser
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from dynamo import (
     is_new_post,
     is_table_empty,
@@ -113,6 +113,16 @@ def lambda_handler(event, context):
     save_metadata(post)
 
 
+def _first_img_src(html: str) -> str | None:
+    """Return the src of the first <img> in the given HTML, if any."""
+    img_tag = BeautifulSoup(html, "html.parser").find("img")
+    if isinstance(img_tag, Tag):
+        src = img_tag.get("src")
+        if isinstance(src, str):
+            return src
+    return None
+
+
 def extract_image_from_entry(entry) -> str | None:
     # 1. Try media_content (most common in RSS feeds with media)
     if "media_content" in entry:
@@ -129,17 +139,15 @@ def extract_image_from_entry(entry) -> str | None:
     # 3. Try to parse 'content' field's HTML and get first <img>
     content_list = entry.get("content", [])
     for content in content_list:
-        soup = BeautifulSoup(content.value, "html.parser")
-        img_tag = soup.find("img")
-        if img_tag and img_tag.has_attr("src"):
-            return img_tag["src"]
+        src = _first_img_src(content.value)
+        if src:
+            return src
 
     # 4. Try to parse 'summary' field as fallback
     if "summary" in entry:
-        soup = BeautifulSoup(entry.summary, "html.parser")
-        img_tag = soup.find("img")
-        if img_tag and img_tag.has_attr("src"):
-            return img_tag["src"]
+        src = _first_img_src(entry.summary)
+        if src:
+            return src
 
     # No image found
     return None
