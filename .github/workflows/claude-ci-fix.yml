@@ -108,7 +108,7 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
             PR: #${{ github.event.workflow_run.pull_requests[0].number }}
