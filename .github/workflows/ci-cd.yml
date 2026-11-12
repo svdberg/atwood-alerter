@@ -14,7 +14,7 @@ env:
   AWS_REGION_STAGING: us-west-2
   AWS_REGION_PRODUCTION: eu-north-1
   PYTHON_VERSION: '3.11'
-  NODE_VERSION: '22'
+  NODE_VERSION: '24'
 
 jobs:
   # Security and Code Quality
