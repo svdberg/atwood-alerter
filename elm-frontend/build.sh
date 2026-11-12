@@ -91,9 +91,14 @@ API_BASE_URL=$(echo "$API_BASE_URL" | sed 's:/*$::')
 
 echo "Using API URL: $API_BASE_URL"
 
-# Generate Config.elm from template with the correct API URL
-cp src/Config.elm.template src/Config.elm.backup
-cat src/Config.elm.template | sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" > src/Config.elm
+# Generate Config.elm from template with the correct API URL.
+# Always restore the committed version on exit (including on failure), so a
+# broken build never leaves an environment-specific Config.elm in the tree.
+restore_config() {
+  cp src/Config.elm.template src/Config.elm
+}
+trap restore_config EXIT
+sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" src/Config.elm.template > src/Config.elm
 
 # Generate Elm Tailwind modules
 npx elm-tailwind-modules --dir src
@@ -115,16 +120,6 @@ mv dist/index.html.tmp dist/index.html
 
 # Build Tailwind CSS
 npm run build
-
-# Restore original Config.elm
-if [ -f src/Config.elm.template ]; then
-  # If using template, restore from template
-  cp src/Config.elm.template src/Config.elm
-  rm -f src/Config.elm.backup
-else
-  # If not using template, restore from backup
-  mv src/Config.elm.backup src/Config.elm
-fi
 
 echo "Build complete! Output is in dist/"
 echo "API URL configured: $API_BASE_URL"
