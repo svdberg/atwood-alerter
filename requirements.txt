@@ -7,7 +7,7 @@ flake8>=6.0.0
 black>=23.0.0
 isort>=9.0.2
 mypy>=2.4.1
-bandit>=1.7.0
+bandit>=1.9.4
 
 # Testing
 pytest>=9.1.1
