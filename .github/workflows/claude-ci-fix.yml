@@ -1,0 +1,136 @@
+name: Claude CI Fix
+
+# When CI fails on a PR from a claude/ branch, let Claude read the failing logs
+# and push a fix to the same branch. Capped at 3 attempts per branch; after
+# that it comments on the PR and leaves it for a human.
+#
+# Scope: only claude/ branches, only same-repo PRs. Anyone with write access can
+# push a claude/ branch, so this assumes all writers are trusted.
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline", "Pull Request Validation"]
+    types: [completed]
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '24'
+  MAX_ATTEMPTS: 3
+
+jobs:
+  fix:
+    if: |
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.pull_requests[0] &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'claude/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Both upstream workflows can fail on the same push; handle them one at a time.
+    concurrency:
+      group: claude-ci-fix-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      # Refuse to run branch code unless whoever triggered the failing run has
+      # write access (blocks fork PRs and outside contributors).
+      - name: Check triggering actor has write access
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const users = new Set([
+              context.payload.workflow_run.actor.login,
+              context.payload.workflow_run.triggering_actor.login,
+            ]);
+            for (const username of users) {
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username,
+              });
+              if (!['admin', 'maintain', 'write'].includes(data.permission)) {
+                core.setFailed(`${username} has ${data.permission} access; refusing to run.`);
+              }
+            }
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Decide whether to run
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          PR: ${{ github.event.workflow_run.pull_requests[0].number }}
+        run: |
+          BRANCH_SHA=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
+          if [ "$BRANCH_SHA" != "$FAILED_SHA" ]; then
+            echo "Branch moved on ($FAILED_SHA -> $BRANCH_SHA); the failure is stale. Skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          git checkout -B "$BRANCH" "$FAILED_SHA"
+          git branch --set-upstream-to="origin/$BRANCH"
+          ATTEMPTS=$(git log origin/main..HEAD --grep '^CI-Fix-Attempt:' --format=%H | wc -l)
+          echo "Previous fix attempts: $ATTEMPTS"
+          if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
+            gh pr comment "$PR" --body "CI is still failing after $ATTEMPTS automated fix attempts. Leaving this for a human. Failed run: ${{ github.event.workflow_run.html_url }}"
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "attempt=$((ATTEMPTS + 1))" >> "$GITHUB_OUTPUT"
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v7
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v6
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install toolchain
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          pip install -r requirements.txt -r tests/requirements.txt black isort flake8 mypy
+          (cd elm-frontend && npm ci)
+
+      - name: Fix CI with Claude
+        if: steps.gate.outputs.run == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR: #${{ github.event.workflow_run.pull_requests[0].number }}
+            BRANCH: ${{ github.event.workflow_run.head_branch }} (already checked out)
+            FAILED WORKFLOW: ${{ github.event.workflow_run.name }}
+            FAILED RUN: ${{ github.event.workflow_run.html_url }}
+            ATTEMPT: ${{ steps.gate.outputs.attempt }} of ${{ env.MAX_ATTEMPTS }}
+
+            CI failed on this PR. Fix it.
+
+            1. Read the failure: `gh run view ${{ github.event.workflow_run.id }} --log-failed`.
+            2. Find the root cause. Fix the code, not the check: don't skip tests, loosen
+               assertions, or edit CI workflows to make the failure go away.
+            3. Run the checks under "Commands" in CLAUDE.md locally until they pass.
+               (cdk synth and the frontend build need AWS and can't run here.)
+            4. Commit to the current branch with a Conventional Commits message whose
+               last line is the trailer `CI-Fix-Attempt: ${{ steps.gate.outputs.attempt }}`,
+               then `git push`.
+            5. Comment on the PR summarising the cause and the fix.
+
+            If the failure isn't caused by this PR (flaky test, infrastructure, missing
+            secret, outage), don't change code. Comment on the PR explaining what you found.
+          claude_args: |
+            --agent coder
+            --max-turns 50

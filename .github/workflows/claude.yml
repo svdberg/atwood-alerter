@@ -1,0 +1,104 @@
+name: Claude
+
+# Issue → PR factory (agents live in .claude/agents/).
+#  - Label an issue `claude`  → the orchestrator agent runs spec-writer → ux-ui → coder →
+#                               security-reviewer and opens a PR from a claude/ branch.
+#  - Comment `@claude …`      → Claude answers / makes follow-up changes on that issue or PR.
+# Only users with write access can trigger either path (enforced by the action).
+# Claude never merges; a human reviews and merges every PR.
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '24'
+
+jobs:
+  implement-issue:
+    name: Implement issue
+    if: github.event_name == 'issues' && github.event.label.name == 'claude'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Make the orchestrator wait for each specialist before it moves on.
+      CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
+    concurrency:
+      group: claude-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install toolchain
+        run: |
+          pip install -r requirements.txt -r tests/requirements.txt black isort flake8 mypy bandit
+          (cd elm-frontend && npm ci)
+
+      - name: Run Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          label_trigger: claude
+          track_progress: true
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE: #${{ github.event.issue.number }}
+
+            Run the factory pipeline for issue #${{ github.event.issue.number }}.
+          claude_args: |
+            --agent orchestrator
+            --max-turns 150
+
+  respond-to-mention:
+    name: Respond to @claude
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install toolchain
+        run: pip install -r requirements.txt -r tests/requirements.txt black isort flake8 mypy
+
+      - name: Run Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
