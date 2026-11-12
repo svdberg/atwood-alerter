@@ -19,5 +19,5 @@ boto3
 requests
 beautifulsoup4
 feedparser
-pywebpush==1.14.0
+pywebpush==2.5.0
 cryptography>=50.0.2
