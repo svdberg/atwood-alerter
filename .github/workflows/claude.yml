@@ -55,7 +55,8 @@ jobs:
       - name: Install toolchain
         run: |
           pip install -r requirements.txt -r tests/requirements.txt black isort flake8 mypy bandit
-          (cd elm-frontend && npm ci)
+          npm install -g elm elm-test
+          (cd elm-frontend && npm ci && npx playwright install --with-deps chromium)
 
       - name: Run Claude
         uses: anthropics/claude-code-action@v1
