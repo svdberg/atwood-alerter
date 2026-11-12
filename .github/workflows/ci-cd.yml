@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  security-events: read
 
 env:
   AWS_REGION_STAGING: us-west-2
