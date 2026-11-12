@@ -23,6 +23,7 @@ jobs:
       github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.pull_requests[0] &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
       startsWith(github.event.workflow_run.head_branch, 'claude/')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -37,9 +38,30 @@ jobs:
       id-token: write
       actions: read
     steps:
+      # Refuse to run branch code unless whoever triggered the failing run has
+      # write access (blocks fork PRs and outside contributors).
+      - name: Check triggering actor has write access
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const users = new Set([
+              context.payload.workflow_run.actor.login,
+              context.payload.workflow_run.triggering_actor.login,
+            ]);
+            for (const username of users) {
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username,
+              });
+              if (!['admin', 'maintain', 'write'].includes(data.permission)) {
+                core.setFailed(`${username} has ${data.permission} access; refusing to run.`);
+              }
+            }
+
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.workflow_run.head_branch }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Decide whether to run
@@ -47,13 +69,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
           PR: ${{ github.event.workflow_run.pull_requests[0].number }}
         run: |
-          HEAD_SHA=$(git rev-parse HEAD)
-          if [ "$HEAD_SHA" != "$FAILED_SHA" ]; then
-            echo "Branch moved on ($FAILED_SHA -> $HEAD_SHA); the failure is stale. Skipping."
+          BRANCH_SHA=$(git ls-remote origin "refs/heads/$BRANCH" | cut -f1)
+          if [ "$BRANCH_SHA" != "$FAILED_SHA" ]; then
+            echo "Branch moved on ($FAILED_SHA -> $BRANCH_SHA); the failure is stale. Skipping."
             echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
+          git checkout -B "$BRANCH" "$FAILED_SHA"
+          git branch --set-upstream-to="origin/$BRANCH"
           ATTEMPTS=$(git log origin/main..HEAD --grep '^CI-Fix-Attempt:' --format=%H | wc -l)
           echo "Previous fix attempts: $ATTEMPTS"
           if [ "$ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
