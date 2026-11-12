@@ -58,6 +58,24 @@ available to agents. CI covers them; don't try to run them.
   tests import handlers by putting `lambda/` on `sys.path`.
 - Keep type hints mypy-clean; prefer `isinstance` narrowing over `# type: ignore`.
 
+## Agent factory
+
+Labelling an issue `claude` runs `.github/workflows/claude.yml`. That starts
+Claude Code with `--agent orchestrator`, which delegates to the specialists in
+`.claude/agents/`:
+
+| Agent | Model | Role | Can edit |
+|-------|-------|------|----------|
+| `orchestrator` | opus | Triage, delegate, fix loop (max 2 rounds), open PR | No (git/gh only) |
+| `spec-writer` | opus | Issue → `docs/specs/issue-<N>.md` with acceptance criteria | Specs only |
+| `ux-ui` | sonnet | Adds a UX/UI section to the spec; reviews frontend diffs | Specs only |
+| `coder` | sonnet | Implements, tests, runs checks, commits. Also runs CI fixes | Yes |
+| `security-reviewer` | opus | Reviews the diff; blocking/non-blocking findings | No |
+
+To change an agent's model, edit the `model:` line in its frontmatter
+(`opus`, `sonnet`, `haiku`, `fable`, or a full model ID). Run an agent locally
+with `claude --agent <name>`.
+
 ## Guardrails for agents
 
 - Never push to `main`. Work on a `claude/…` branch and open a PR; a human merges.

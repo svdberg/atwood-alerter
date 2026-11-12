@@ -1,7 +1,8 @@
 name: Claude
 
-# Issue → PR pipeline.
-#  - Label an issue `claude`  → Claude implements it on a claude/ branch and opens a PR.
+# Issue → PR factory (agents live in .claude/agents/).
+#  - Label an issue `claude`  → the orchestrator agent runs spec-writer → ux-ui → coder →
+#                               security-reviewer and opens a PR from a claude/ branch.
 #  - Comment `@claude …`      → Claude answers / makes follow-up changes on that issue or PR.
 # Only users with write access can trigger either path (enforced by the action).
 # Claude never merges; a human reviews and merges every PR.
@@ -25,7 +26,10 @@ jobs:
     name: Implement issue
     if: github.event_name == 'issues' && github.event.label.name == 'claude'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
+    env:
+      # Make the orchestrator wait for each specialist before it moves on.
+      CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: '1'
     concurrency:
       group: claude-issue-${{ github.event.issue.number }}
       cancel-in-progress: false
@@ -50,7 +54,7 @@ jobs:
 
       - name: Install toolchain
         run: |
-          pip install -r requirements.txt -r tests/requirements.txt black isort flake8 mypy
+          pip install -r requirements.txt -r tests/requirements.txt black isort flake8 mypy bandit
           (cd elm-frontend && npm ci)
 
       - name: Run Claude
@@ -63,24 +67,10 @@ jobs:
             REPO: ${{ github.repository }}
             ISSUE: #${{ github.event.issue.number }}
 
-            Implement GitHub issue #${{ github.event.issue.number }} in this repository.
-            Read it with `gh issue view ${{ github.event.issue.number }} --comments`.
-            Follow CLAUDE.md, including its guardrails.
-
-            1. If the issue is ambiguous, too large for one PR, or would need AWS access
-               to verify, comment on the issue explaining what you need and stop.
-            2. Create a branch `claude/issue-${{ github.event.issue.number }}-<short-slug>` from main.
-            3. Make the change. Add or update tests in tests/ for any behaviour change.
-            4. Run every check listed under "Commands" in CLAUDE.md and fix failures
-               until they pass.
-            5. Commit with a Conventional Commits message, push the branch, and open a PR with
-               `gh pr create --base main`. Title: Conventional Commits format.
-               Body: summary, how you verified it, risks, and `Closes #${{ github.event.issue.number }}`.
-            6. Comment on the issue with a link to the PR.
-
-            Never push to main and never merge.
+            Run the factory pipeline for issue #${{ github.event.issue.number }}.
           claude_args: |
-            --max-turns 80
+            --agent orchestrator
+            --max-turns 150
 
   respond-to-mention:
     name: Respond to @claude

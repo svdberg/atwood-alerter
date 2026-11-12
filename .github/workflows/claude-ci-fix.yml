@@ -132,4 +132,5 @@ jobs:
             If the failure isn't caused by this PR (flaky test, infrastructure, missing
             secret, outage), don't change code. Comment on the PR explaining what you found.
           claude_args: |
+            --agent coder
             --max-turns 50
