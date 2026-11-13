@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import unicodedata
 from datetime import datetime, timezone
 
 import boto3
@@ -155,14 +156,44 @@ def extract_image_from_entry(entry) -> str | None:
     return None
 
 
-def notify_subscribers(post):
-    message = {"title": "New Blog Post!", "body": post["title"], "url": post["url"]}
+SUBJECT_PREFIX = "New Atwood release"
+MAX_SUBJECT_LEN = 99
 
+
+def build_push_payload(post) -> dict:
+    return {"title": "New Blog Post!", "body": post["title"], "url": post["url"]}
+
+
+def build_email_subject(title: str) -> str:
+    ascii_title = (
+        unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii")
+    )
+    clean = re.sub(r"[\s\x00-\x1f\x7f]+", " ", ascii_title).strip()
+    subject = f"{SUBJECT_PREFIX}: {clean}" if clean else SUBJECT_PREFIX
+    if len(subject) > MAX_SUBJECT_LEN:
+        subject = subject[: MAX_SUBJECT_LEN - 3].rstrip() + "..."
+    return subject
+
+
+def build_email_body(post) -> str:
+    status = "Sold out" if post.get("sold") else "Available"
+    return f"{SUBJECT_PREFIX}: {post['title']}\n\n{post['url']}\n\nStatus: {status}\n"
+
+
+def build_sns_message(post) -> str:
+    push_json = json.dumps(build_push_payload(post))
+    return json.dumps(
+        {"default": push_json, "email": build_email_body(post), "lambda": push_json}
+    )
+
+
+def notify_subscribers(post):
     try:
         sns.publish(
             TopicArn=notify_topic_arn,
-            Subject="New Blog Post",
-            Message=json.dumps(message),  # Send as JSON string
+            Subject=build_email_subject(post["title"]),
+            Message=build_sns_message(post),
+            MessageStructure="json",
         )
         print("Notification sent.")
     except Exception as e:
