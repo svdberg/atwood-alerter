@@ -55,6 +55,16 @@ npx playwright install chromium     # once
 npm run screenshots                 # → screenshots/out/*.png
 ```
 
+Send a test push to **staging** subscribers (to check the notification layout).
+Invokes `atwood-staging-web-push` directly (us-west-2) with an SNS-style event;
+it does not publish to the SNS topic, so no emails go out. Uses your local AWS
+credentials (`AWS_PROFILE` if set). Refuses production. Agents shouldn't run it.
+
+```bash
+scripts/send-test-push.sh                         # latest post from staging /status
+scripts/send-test-push.sh --title "Test" --image-url https://… --url https://… --sold
+```
+
 `cdk synth` and real deploys need AWS credentials and aren't available to
 agents. CI covers them; don't try to run them. Every PR that touches
 `elm-frontend/` gets before/after screenshots posted by `visual-preview.yml`.
