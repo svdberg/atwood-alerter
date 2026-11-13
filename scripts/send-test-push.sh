@@ -23,8 +23,8 @@
 #
 # Environment:
 #   AWS_PROFILE       Optional; local AWS profile to use
-#   STATUS_URL        Override the status endpoint
-#                     (default https://api.staging.atwood-sniper.com/status)
+#   STATUS_URL        Override the status endpoint (default: the ApiEndpoint
+#                     output of the AtwoodMonitor-Staging-Main stack + "status")
 #   Region is fixed to us-west-2 (staging). Production is refused.
 #
 # Requires: aws CLI, curl, python3.
@@ -34,13 +34,14 @@ set -euo pipefail
 REGION="us-west-2"
 ENVIRONMENT="${ENVIRONMENT:-staging}"
 FUNCTION_NAME="${FUNCTION_NAME:-atwood-staging-web-push}"
-STATUS_URL="${STATUS_URL:-https://api.staging.atwood-sniper.com/status}"
+STACK_NAME="AtwoodMonitor-Staging-Main"
+STATUS_URL="${STATUS_URL:-}"
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; }
 
 # Staging only: refuse anything that looks like production.
 if [[ "$ENVIRONMENT" != "staging" || "$FUNCTION_NAME" != "atwood-staging-web-push" \
-      || "$FUNCTION_NAME" == *prod* || "$STATUS_URL" == *"//api.atwood-sniper.com"* ]]; then
+      || "$FUNCTION_NAME" == *prod* || "$STATUS_URL" == *eu-north-1* ]]; then
   echo "Refusing to run: staging only (ENVIRONMENT=$ENVIRONMENT, FUNCTION_NAME=$FUNCTION_NAME)." >&2
   exit 1
 fi
@@ -63,6 +64,14 @@ done
 
 # Fetch the latest post from staging /status unless everything is overridden.
 if (( ! (HAVE_TITLE && HAVE_IMAGE && HAVE_URL) )); then
+  if [[ -z "$STATUS_URL" ]]; then
+    API_URL="$(aws cloudformation describe-stacks --region "$REGION" --stack-name "$STACK_NAME" \
+      --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)" || {
+      echo "Could not read ApiEndpoint from $STACK_NAME; set STATUS_URL or pass --title, --image-url and --url." >&2
+      exit 1
+    }
+    STATUS_URL="${API_URL%/}/status"
+  fi
   echo "Fetching latest post from $STATUS_URL ..."
   STATUS_JSON="$(curl -fsS --max-time 15 "$STATUS_URL")" || {
     echo "Could not fetch $STATUS_URL; pass --title, --image-url and --url." >&2
