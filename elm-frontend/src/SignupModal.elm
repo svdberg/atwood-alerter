@@ -3,7 +3,10 @@ module SignupModal exposing
     , StatusMsg(..)
     , closeModal
     , enterDecoder
+    , errorMessage
     , escapeDecoder
+    , networkErrorMessage
+    , onEmailChange
     , onSubscribeResult
     , openModal
     )
@@ -46,13 +49,54 @@ closeModal state =
             { state | open = False }
 
 
-onSubscribeResult : Bool -> State -> State
-onSubscribeResult ok state =
-    if ok then
-        { state | statusMsg = Sent "Check your email to confirm!", email = "" }
+fallbackErrorMessage : String
+fallbackErrorMessage =
+    "Failed to subscribe. Please try again."
 
-    else
-        { state | statusMsg = Error "Failed to subscribe." }
+
+networkErrorMessage : String
+networkErrorMessage =
+    "Couldn't reach the server. Check your connection and try again."
+
+
+{-| Extract the `error` field from a failed /subscribe response body.
+-}
+errorMessage : String -> Maybe String
+errorMessage body =
+    case Decode.decodeString (Decode.field "error" Decode.string) body of
+        Ok "" ->
+            Nothing
+
+        Ok msg ->
+            Just msg
+
+        Err _ ->
+            Nothing
+
+
+onSubscribeResult : Result (Maybe String) () -> State -> State
+onSubscribeResult result state =
+    case result of
+        Ok () ->
+            { state | statusMsg = Sent "Check your email to confirm!", email = "" }
+
+        Err (Just msg) ->
+            { state | statusMsg = Error msg }
+
+        Err Nothing ->
+            { state | statusMsg = Error fallbackErrorMessage }
+
+
+{-| Editing the email clears a stale error, but not Sent or Sending.
+-}
+onEmailChange : String -> State -> State
+onEmailChange val state =
+    case state.statusMsg of
+        Error _ ->
+            { state | email = val, statusMsg = Idle }
+
+        _ ->
+            { state | email = val }
 
 
 keyDecoder : String -> msg -> Decoder msg

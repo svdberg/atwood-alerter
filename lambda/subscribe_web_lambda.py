@@ -4,6 +4,7 @@ import os
 import time
 
 import boto3
+from http_response import json_response
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["WEB_PUSH_TABLE"])
@@ -19,7 +20,7 @@ def lambda_handler(event, context):
 
         # Sanity check
         if "endpoint" not in body:
-            return _response(400, {"error": "Missing endpoint in subscription"})
+            return json_response(400, {"error": "Missing endpoint in subscription"})
 
         # Use endpoint as part of a hash ID
         subscription_json = json.dumps(body)
@@ -37,18 +38,7 @@ def lambda_handler(event, context):
             }
         )
 
-        return _response(200, {"message": "Subscription registered"})
+        return json_response(200, {"message": "Subscription registered"})
     except Exception as e:
         print(f"Error: {e}")
-        return _response(500, {"error": str(e)})
-
-
-def _response(status_code, body):
-    return {
-        "statusCode": status_code,
-        "headers": {
-            "Access-Control-Allow-Origin": "*",  # CORS
-            "Access-Control-Allow-Headers": "*",
-        },
-        "body": json.dumps(body),
-    }
+        return json_response(500, {"error": str(e)})

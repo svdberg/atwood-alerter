@@ -41,22 +41,56 @@ suite =
                 SignupModal.closeModal { base | open = True, statusMsg = Error "x" }
                     |> .email
                     |> Expect.equal "a@b.co"
-        , test "onSubscribeResult True sends and clears email" <|
+        , test "onSubscribeResult Ok sends and clears email" <|
             \_ ->
-                SignupModal.onSubscribeResult True { base | statusMsg = Sending }
+                SignupModal.onSubscribeResult (Ok ()) { base | statusMsg = Sending }
                     |> Expect.equal
                         { open = False
                         , email = ""
                         , statusMsg = Sent "Check your email to confirm!"
                         }
-        , test "onSubscribeResult False errors and keeps email" <|
+        , test "onSubscribeResult Err Just shows server message and keeps email" <|
             \_ ->
-                SignupModal.onSubscribeResult False { base | statusMsg = Sending }
+                SignupModal.onSubscribeResult (Err (Just "X")) { base | statusMsg = Sending }
                     |> Expect.equal
                         { open = False
                         , email = "a@b.co"
-                        , statusMsg = Error "Failed to subscribe."
+                        , statusMsg = Error "X"
                         }
+        , test "onSubscribeResult Err Nothing uses fallback and keeps email" <|
+            \_ ->
+                SignupModal.onSubscribeResult (Err Nothing) { base | statusMsg = Sending }
+                    |> Expect.equal
+                        { open = False
+                        , email = "a@b.co"
+                        , statusMsg = Error "Failed to subscribe. Please try again."
+                        }
+        , test "errorMessage reads the error field" <|
+            \_ ->
+                SignupModal.errorMessage "{\"error\":\"Please enter a valid email address.\"}"
+                    |> Expect.equal (Just "Please enter a valid email address.")
+        , test "errorMessage returns Nothing for non-JSON, missing or empty error" <|
+            \_ ->
+                [ "oops", "{}", "{\"error\":\"\"}" ]
+                    |> List.map SignupModal.errorMessage
+                    |> Expect.equal [ Nothing, Nothing, Nothing ]
+        , test "networkErrorMessage is the connection copy" <|
+            \_ ->
+                SignupModal.networkErrorMessage
+                    |> Expect.equal "Couldn't reach the server. Check your connection and try again."
+        , test "onEmailChange clears Error" <|
+            \_ ->
+                SignupModal.onEmailChange "new@b.co" { base | statusMsg = Error "x" }
+                    |> Expect.equal { open = False, email = "new@b.co", statusMsg = Idle }
+        , test "onEmailChange keeps Sent and Sending" <|
+            \_ ->
+                ( SignupModal.onEmailChange "n@b.co" { base | statusMsg = Sent "ok" }
+                , SignupModal.onEmailChange "n@b.co" { base | statusMsg = Sending }
+                )
+                    |> Expect.equal
+                        ( { open = False, email = "n@b.co", statusMsg = Sent "ok" }
+                        , { open = False, email = "n@b.co", statusMsg = Sending }
+                        )
         , test "escapeDecoder accepts Escape" <|
             \_ ->
                 Decode.decodeString (SignupModal.escapeDecoder ()) "{\"key\":\"Escape\"}"
