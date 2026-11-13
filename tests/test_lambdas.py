@@ -561,3 +561,321 @@ def test_extract_image_from_entry_upscales_blogger_urls():
     assert mod.extract_image_from_entry(Entry(media_thumbnail=[{"url": thumb}])) == full
     summary = f'<div><img src="{thumb}"></div>'
     assert mod.extract_image_from_entry(Entry(summary=summary)) == full
+
+
+# --- Recent releases / sold_at re-checks -----------------------------------
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+from email.utils import format_datetime  # noqa: E402
+
+NOW = datetime(2026, 11, 13, 12, 0, 0, tzinfo=timezone.utc)
+SOLD_HTML = "<div class='post-body'>Nice knife\nSold out</div>"
+OPEN_HTML = "<div class='post-body'>Nice knife\nOrder now</div>"
+
+
+class _Entry(dict):
+    def __getattr__(self, name):
+        return self[name]
+
+
+def _entry(n, age):
+    return _Entry(
+        id=f"id{n}",
+        title=f"Post {n}",
+        link=f"https://blog.test/{n}",
+        published=format_datetime(NOW - age),
+    )
+
+
+def _setup_recheck(monkeypatch, entries, sold_by_url, stored=None):
+    mod, posts = _scraper_env()
+    posts.put_item(Item={"post_id": "__meta__", "last_run_time": "x"})
+    for e in entries if stored is None else stored:
+        posts.put_item(
+            Item={
+                "post_id": e["id"],
+                "title": e["title"],
+                "url": e["link"],
+                "sold": False,
+            }
+        )
+    calls = []
+
+    class Resp:
+        def __init__(self, text):
+            self.text = text
+
+    def fake_get(url, timeout=None, **kw):
+        assert timeout
+        calls.append(url)
+        result = sold_by_url.get(url, OPEN_HTML)
+        if isinstance(result, Exception):
+            raise result
+        return Resp(result)
+
+    class Feed:
+        pass
+
+    feed = Feed()
+    feed.entries = entries
+    monkeypatch.setattr(mod.feedparser, "parse", lambda url: feed)
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+    monkeypatch.setattr(mod, "_utcnow", lambda: NOW)
+    monkeypatch.setattr(mod, "extract_image_from_entry", lambda e: None)
+    monkeypatch.setattr(mod, "notify_subscribers", lambda p: None)
+    return mod, posts, calls
+
+
+def _item(posts, n):
+    return posts.get_item(Key={"post_id": f"id{n}"})["Item"]
+
+
+@mock_aws
+def test_fetch_sold_status_uses_timeout(monkeypatch):
+    mod, _ = _scraper_env()
+    seen = {}
+
+    class Resp:
+        text = SOLD_HTML
+
+    def fake_get(url, timeout=None):
+        seen["timeout"] = timeout
+        return Resp()
+
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+    assert mod.fetch_sold_status("https://x") is True
+    assert seen["timeout"] == mod.REQUEST_TIMEOUT_S
+
+
+@mock_aws
+def test_recheck_marks_sold_with_sold_at(monkeypatch):
+    entries = [_entry(1, timedelta(hours=1)), _entry(2, timedelta(days=2))]
+    mod, posts, calls = _setup_recheck(
+        monkeypatch, entries, {"https://blog.test/2": SOLD_HTML}
+    )
+    mod.lambda_handler({}, None)
+    item = _item(posts, 2)
+    assert item["sold"] is True
+    assert item["sold_at"] == "2026-11-13T12:00:00Z"
+    assert "sold_at" not in _item(posts, 1)
+
+    # second run: sold post is never fetched again, sold_at unchanged
+    calls.clear()
+    monkeypatch.setattr(mod, "_utcnow", lambda: NOW + timedelta(hours=1))
+    mod.lambda_handler({}, None)
+    assert "https://blog.test/2" not in calls
+    assert _item(posts, 2)["sold_at"] == "2026-11-13T12:00:00Z"
+
+
+@mock_aws
+def test_mark_sold_is_conditional():
+    _, posts = _scraper_env()
+    dynamo = sys.modules["dynamo"]
+    posts.put_item(Item={"post_id": "p", "sold": False})
+    assert dynamo.mark_sold("p", "2026-01-01T00:00:00Z") is True
+    assert dynamo.mark_sold("p", "2026-02-02T00:00:00Z") is False
+    assert posts.get_item(Key={"post_id": "p"})["Item"]["sold_at"] == (
+        "2026-01-01T00:00:00Z"
+    )
+
+
+@mock_aws
+def test_recheck_skips_old_sold_and_unknown(monkeypatch):
+    entries = [
+        _entry(1, timedelta(hours=1)),
+        _entry(2, timedelta(days=8)),  # outside window
+        _entry(3, timedelta(days=1)),  # already sold
+        _entry(4, timedelta(days=1)),  # not in table
+    ]
+    mod, posts, calls = _setup_recheck(monkeypatch, entries, {}, stored=entries[:3])
+    posts.update_item(
+        Key={"post_id": "id3"},
+        UpdateExpression="SET sold = :t",
+        ExpressionAttributeValues={":t": True},
+    )
+    mod.lambda_handler({}, None)
+    assert calls == ["https://blog.test/1"]  # only the newest fetch
+    assert "Item" not in posts.get_item(Key={"post_id": "id4"})
+    assert "sold_at" not in _item(posts, 3)
+
+
+@mock_aws
+def test_recheck_cap_and_order(monkeypatch):
+    entries = [_entry(n, timedelta(hours=n)) for n in range(1, 7)]
+    sold = {e["link"]: SOLD_HTML for e in entries}
+    mod, posts, calls = _setup_recheck(monkeypatch, entries, sold)
+    mod.lambda_handler({}, None)
+    assert len(calls) == 1 + mod.MAX_RECHECKS_PER_RUN
+    assert calls[1:] == [f"https://blog.test/{n}" for n in (2, 3, 4)]
+    # newest reused result: no second GET for its URL, and gets sold_at
+    assert calls.count("https://blog.test/1") == 1
+    assert _item(posts, 1)["sold_at"] == "2026-11-13T12:00:00Z"
+    assert "sold_at" not in _item(posts, 5)
+
+
+@mock_aws
+def test_recheck_failure_isolated(monkeypatch):
+    entries = [_entry(n, timedelta(hours=n)) for n in range(1, 4)]
+    sold = {
+        "https://blog.test/2": RuntimeError("boom"),
+        "https://blog.test/3": SOLD_HTML,
+    }
+    mod, posts, calls = _setup_recheck(monkeypatch, entries, sold)
+    saved = []
+    monkeypatch.setattr(mod, "save_metadata", lambda p: saved.append(p))
+    mod.lambda_handler({}, None)
+    assert saved
+    assert _item(posts, 3)["sold"] is True
+    assert "sold_at" not in _item(posts, 2)
+
+
+@mock_aws
+def test_recheck_total_failure_still_saves_metadata(monkeypatch):
+    entries = [_entry(1, timedelta(hours=1))]
+    mod, posts, _ = _setup_recheck(monkeypatch, entries, {})
+    saved = []
+    monkeypatch.setattr(mod, "save_metadata", lambda p: saved.append(p))
+
+    def boom(ids):
+        raise RuntimeError("ddb down")
+
+    monkeypatch.setattr(mod, "get_posts", boom)
+    mod.lambda_handler({}, None)
+    assert saved
+
+
+@mock_aws
+def test_new_sold_post_has_no_sold_at(monkeypatch):
+    entries = [_entry(1, timedelta(hours=1))]
+    mod, posts, _ = _setup_recheck(
+        monkeypatch, entries, {"https://blog.test/1": SOLD_HTML}, stored=[]
+    )
+    mod.lambda_handler({}, None)
+    item = _item(posts, 1)
+    assert item["sold"] is True
+    assert "sold_at" not in item
+
+
+@mock_aws
+def test_seed_run_has_no_sold_at_and_no_rechecks(monkeypatch):
+    mod, posts = _scraper_env()
+    entries = [_entry(1, timedelta(hours=1)), _entry(2, timedelta(hours=2))]
+    calls = []
+
+    class Resp:
+        text = SOLD_HTML
+
+    class Feed:
+        pass
+
+    feed = Feed()
+    feed.entries = entries
+    monkeypatch.setattr(mod.feedparser, "parse", lambda url: feed)
+    monkeypatch.setattr(
+        mod.requests, "get", lambda url, timeout=None: calls.append(url) or Resp()
+    )
+    monkeypatch.setattr(mod, "extract_image_from_entry", lambda e: None)
+    mod.lambda_handler({}, None)
+    assert len(calls) == 1 + 2  # newest once, then one per seeded entry
+    assert _item(posts, 1)["sold"] is True
+    assert "sold_at" not in _item(posts, 1)
+
+
+def _status_env():
+    ddb = boto3.client("dynamodb", region_name="us-east-1")
+    ddb.create_table(
+        TableName="Posts",
+        KeySchema=[{"AttributeName": "post_id", "KeyType": "HASH"}],
+        AttributeDefinitions=[{"AttributeName": "post_id", "AttributeType": "S"}],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    os.environ["POSTS_TABLE"] = "Posts"
+    table = boto3.resource("dynamodb", region_name="us-east-1").Table("Posts")
+    return reload_module("status_lambda"), table
+
+
+@mock_aws
+def test_status_recent_releases_sorted_filtered_and_shaped():
+    mod, table = _status_env()
+    table.put_item(Item={"post_id": "__meta__", "last_run_time": "1"})
+    table.put_item(Item={"post_id": "__stats__#2026-11", "posts_announced": 1})
+    # "Fri" < "Mon" < "Tue" as strings but chronologically Tue 3rd < Fri 6th < Mon 9th
+    table.put_item(
+        Item={
+            "post_id": "a",
+            "title": "A",
+            "url": "u1",
+            "published": "Fri, 06 Nov 2026 10:00:00 +0000",
+            "sold": True,
+            "sold_at": "2026-11-06T10:07:00Z",
+            "image_url": "i",
+        }
+    )
+    table.put_item(
+        Item={
+            "post_id": "b",
+            "title": "B",
+            "url": "u2",
+            "published": "Mon, 09 Nov 2026 10:00:00 +0000",
+            "sold": False,
+        }
+    )
+    table.put_item(
+        Item={
+            "post_id": "c",
+            "title": "C",
+            "url": "u3",
+            "published": "Tue, 03 Nov 2026 10:00:00 +0000",
+            "sold": True,
+        }
+    )
+    body = json.loads(mod.lambda_handler({}, None)["body"])
+    assert body["last_run_time"] == "1"
+    rr = body["recent_releases"]
+    assert [r["title"] for r in rr] == ["B", "A", "C"]
+    assert set(rr[0]) == {"title", "url", "published", "image_url", "sold", "sold_at"}
+    assert rr[0]["sold_at"] is None and rr[0]["image_url"] is None
+    assert rr[1]["sold_at"] == "2026-11-06T10:07:00Z"
+
+
+@mock_aws
+def test_status_recent_releases_limit_and_pagination(monkeypatch):
+    mod, table = _status_env()
+    for n in range(1, 16):
+        table.put_item(
+            Item={
+                "post_id": f"p{n}",
+                "title": f"P{n}",
+                "url": "u",
+                "published": f"Mon, {n:02d} Dec 2026 10:00:00 +0000",
+                "sold": False,
+            }
+        )
+    real_scan = mod.table.scan
+    pages = []
+
+    def paged(**kw):
+        pages.append(1)
+        return real_scan(Limit=4, **kw)
+
+    monkeypatch.setattr(mod.table, "scan", paged)
+    rr = json.loads(mod.lambda_handler({}, None)["body"])["recent_releases"]
+    assert len(pages) > 1
+    assert len(rr) == 10
+    assert rr[0]["title"] == "P15"
+
+
+@mock_aws
+def test_status_recent_releases_empty_and_scan_failure(monkeypatch):
+    mod, table = _status_env()
+    table.put_item(Item={"post_id": "__meta__", "last_run_time": "1"})
+    result = mod.lambda_handler({}, None)
+    assert result["statusCode"] == 200
+    assert json.loads(result["body"])["recent_releases"] == []
+
+    def boom(**kw):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(mod.table, "scan", boom)
+    result = mod.lambda_handler({}, None)
+    assert json.loads(result["body"])["recent_releases"] == []

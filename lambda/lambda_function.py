@@ -2,7 +2,8 @@ import json
 import os
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from typing import Optional
 from urllib.parse import urlsplit
 
@@ -11,8 +12,10 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup, Tag
 from dynamo import (
+    get_posts,
     is_new_post,
     is_table_empty,
+    mark_sold,
     post_table_name,
     record_notification,
     save_metadata,
@@ -30,6 +33,9 @@ SOLD_PATTERNS = [
     r"these\s+are\s+sold\s+out",
     r"thank\s+you",
 ]
+REQUEST_TIMEOUT_S = 10
+RECHECK_WINDOW = timedelta(days=7)
+MAX_RECHECKS_PER_RUN = 3
 
 
 def is_sold(text: str) -> bool:
@@ -37,6 +43,18 @@ def is_sold(text: str) -> bool:
     last_two = lines[-2:] if len(lines) >= 2 else lines
     combined = " ".join(line.lower() for line in last_two)
     return any(re.search(pat, combined) for pat in SOLD_PATTERNS)
+
+
+def fetch_sold_status(url: str) -> bool:
+    response = requests.get(url, timeout=REQUEST_TIMEOUT_S)
+    soup = BeautifulSoup(response.text, "html.parser")
+    post_body = soup.find("div", class_="post-body")
+    post_text = post_body.get_text(separator="\n").strip() if post_body else ""
+    return is_sold(post_text)
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 # SNS (for future use)
@@ -59,11 +77,7 @@ def lambda_handler(event, context):
         print("Post has no ID. Skipping.")
         return
     post_url = newest.link
-    response = requests.get(post_url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    post_body = soup.find("div", class_="post-body")
-    post_text = post_body.get_text(separator="\n").strip() if post_body else ""
-    sold = is_sold(post_text)
+    sold = fetch_sold_status(post_url)
 
     post = {
         "post_id": post_id,
@@ -84,13 +98,7 @@ def lambda_handler(event, context):
             # Get post content for sold status check
             entry_url = entry.link
             try:
-                response = requests.get(entry_url)
-                soup = BeautifulSoup(response.text, "html.parser")
-                post_body = soup.find("div", class_="post-body")
-                post_text = (
-                    post_body.get_text(separator="\n").strip() if post_body else ""
-                )
-                sold = is_sold(post_text)
+                sold = fetch_sold_status(entry_url)
             except Exception as e:
                 print(f"Failed to fetch content for {entry_id}: {e}")
                 sold = False
@@ -115,7 +123,60 @@ def lambda_handler(event, context):
     else:
         print("No new post.")
 
+    recheck_recent_posts(posts, post_id, sold, _utcnow())
     save_metadata(post)
+
+
+def recheck_recent_posts(entries, newest_id: str, newest_sold: bool, now: datetime):
+    """Record sold_at for recent unsold posts that have now sold out.
+
+    Never raises: a failure here must not stop save_metadata.
+    """
+    try:
+        candidates = []
+        for entry in entries:
+            entry_id = entry.get("id")
+            if not entry_id:
+                continue
+            try:
+                published = parsedate_to_datetime(entry.get("published", ""))
+            except (TypeError, ValueError):
+                continue
+            if published.tzinfo is None:
+                published = published.replace(tzinfo=timezone.utc)
+            if now - published > RECHECK_WINDOW:
+                continue
+            candidates.append((published, entry))
+        candidates.sort(key=lambda c: c[0], reverse=True)
+        if not candidates:
+            return
+
+        items = get_posts([entry["id"] for _, entry in candidates])
+        sold_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        fetches = 0
+        for _, entry in candidates:
+            entry_id = entry["id"]
+            item = items.get(entry_id)
+            if not item or item.get("sold") or item.get("sold_at"):
+                continue
+            if entry_id == newest_id:
+                now_sold = newest_sold
+            else:
+                if fetches >= MAX_RECHECKS_PER_RUN:
+                    continue
+                fetches += 1
+                try:
+                    now_sold = fetch_sold_status(entry.get("link", ""))
+                except Exception as e:
+                    print(f"Re-check failed for {entry_id}: {e}")
+                    continue
+            if now_sold:
+                try:
+                    mark_sold(entry_id, sold_at)
+                except Exception as e:
+                    print(f"Failed to mark {entry_id} sold: {e}")
+    except Exception as e:
+        print(f"Re-check of recent posts failed: {e}")
 
 
 def _first_img_src(html: str) -> str | None:

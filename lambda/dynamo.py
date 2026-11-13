@@ -2,6 +2,7 @@ import os
 from datetime import datetime, timezone
 
 import boto3
+from botocore.exceptions import ClientError
 
 # DynamoDB initialization
 dynamodb = boto3.resource("dynamodb")
@@ -73,3 +74,36 @@ def record_notification(email_recipients: int, now: datetime | None = None) -> N
             ":now": now.isoformat(),
         },
     )
+
+
+def get_posts(post_ids: list[str]) -> dict[str, dict]:
+    """Batch-read posts by id. Returns {post_id: item} for items that exist."""
+    found: dict[str, dict] = {}
+    unique = list(dict.fromkeys(post_ids))
+    for start in range(0, len(unique), 100):
+        keys = [{"post_id": pid} for pid in unique[start : start + 100]]
+        request = {POSTS_TABLE_NAME: {"Keys": keys}}
+        for _ in range(5):
+            response = dynamodb.batch_get_item(RequestItems=request)
+            for item in response.get("Responses", {}).get(POSTS_TABLE_NAME, []):
+                found[item["post_id"]] = item
+            request = response.get("UnprocessedKeys") or {}
+            if not request:
+                break
+    return found
+
+
+def mark_sold(post_id: str, sold_at: str) -> bool:
+    """Set sold and sold_at once. Returns False if already recorded."""
+    try:
+        posts_table.update_item(
+            Key={"post_id": post_id},
+            UpdateExpression="SET sold = :true, sold_at = :ts",
+            ConditionExpression="attribute_not_exists(sold_at) AND sold = :false",
+            ExpressionAttributeValues={":true": True, ":false": False, ":ts": sold_at},
+        )
+        return True
+    except ClientError as e:
+        if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            return False
+        raise
