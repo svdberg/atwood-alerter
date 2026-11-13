@@ -79,6 +79,23 @@ npm ci
 
 ---
 
+## 🔔 Testing Push Notifications (staging)
+
+```bash
+AWS_PROFILE=my-profile scripts/send-test-push.sh
+scripts/send-test-push.sh --title "Test release" --image-url https://example.com/a.jpg \
+  --url https://atwoodknives.blogspot.com/ --sold
+```
+
+Invokes the staging push Lambda (`atwood-staging-web-push`, `us-west-2`) directly
+with an SNS-style event, so it **sends to every staging push subscriber** but
+does not publish to the SNS topic (no emails). By default it uses the latest post
+(including image) from the staging `/status` endpoint; `--title`, `--image-url`,
+`--url` and `--sold` override it. Production is refused. Needs the `aws` CLI,
+`curl` and `python3`.
+
+---
+
 ## 📂 Project Structure
 
 ```
@@ -88,6 +105,7 @@ npm ci
 │   ├── status_lambda.py        # Status API
 │   ├── subscribe_lambda.py     # User subscription
 │   └── lambda-docker/          # Web Push Dockerized Lambda
+├── scripts/                    # Deploy and helper scripts (e.g. send-test-push.sh)
 ├── elm-frontend/               # Elm frontend app
 ├── atwood_monitor/            # CDK application
 │   ├── __init__.py
