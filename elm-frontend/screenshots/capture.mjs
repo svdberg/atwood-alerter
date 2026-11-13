@@ -15,6 +15,7 @@ const [distDir = "dist", outDir = "screenshots/out"] = process.argv.slice(2);
 const ORIGIN = "http://localhost:4173";
 const here = fileURLToPath(new URL(".", import.meta.url));
 const status = await readFile(join(here, "fixtures", "status.json"), "utf8");
+const statusEmpty = JSON.stringify({ ...JSON.parse(status), recent_releases: [] });
 const admin = await readFile(join(here, "fixtures", "admin.json"), "utf8");
 
 const TYPES = {
@@ -30,6 +31,12 @@ const VIEWPORTS = [
 // Each scenario returns true if it applied; skipped scenarios produce no image.
 const SCENARIOS = [
   { name: "main", run: async () => true },
+  {
+    name: "recent-empty",
+    statusBody: statusEmpty,
+    run: async (page) =>
+      page.getByText("No recent releases yet.").waitFor({ timeout: 3000 }).then(() => true, () => false),
+  },
   {
     name: "signup-dialog",
     run: async (page) => {
@@ -51,11 +58,11 @@ const SCENARIOS = [
   },
 ];
 
-async function route(r) {
+async function route(r, statusBody) {
   const url = new URL(r.request().url());
   if (url.origin !== ORIGIN) return r.abort(); // no external network: deterministic shots
   if (url.pathname.startsWith("/api/status")) {
-    return r.fulfill({ contentType: "application/json", body: status });
+    return r.fulfill({ contentType: "application/json", body: statusBody });
   }
   if (url.pathname === "/api/admin" && r.request().method() === "GET") {
     return r.fulfill({ contentType: "application/json", body: admin });
@@ -85,7 +92,7 @@ for (const vp of VIEWPORTS) {
     });
     const page = await context.newPage();
     page.on("pageerror", (e) => errors.push(`${vp.name}/${sc.name}: ${e.message}`));
-    await page.route("**/*", route);
+    await page.route("**/*", (r) => route(r, sc.statusBody ?? status));
     await page.goto(ORIGIN + (sc.path ?? "/"), { waitUntil: "networkidle" });
     if (await sc.run(page)) {
       await page.waitForTimeout(300); // let transitions settle

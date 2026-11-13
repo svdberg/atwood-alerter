@@ -22,6 +22,7 @@ import Http
 import Json.Decode as Decode exposing (Decoder, field, string)
 import Json.Encode
 import Process
+import RecentReleases exposing (Release)
 import SignupModal exposing (StatusMsg(..))
 import Tailwind.Theme as Twt
 import Tailwind.Utilities as Tw
@@ -63,6 +64,7 @@ type alias StatusData =
     , lastPostDate : String
     , lastPostImageUrl : String
     , sold : Bool
+    , recentReleases : List Release
     }
 
 
@@ -106,13 +108,16 @@ fetchStatus =
 
 statusDecoder : Decoder StatusData
 statusDecoder =
-    Decode.map6 StatusData
-        (field "last_run_time" string)
-        (field "last_seen_post" (field "title" string))
-        (field "last_seen_post" (field "url" string))
-        (field "last_seen_post" (field "published" string))
-        (field "last_seen_post" (field "image_url" string))
-        (field "last_seen_post" (field "sold" Decode.bool))
+    Decode.map2 (\base releases -> base releases)
+        (Decode.map6 StatusData
+            (field "last_run_time" string)
+            (field "last_seen_post" (field "title" string))
+            (field "last_seen_post" (field "url" string))
+            (field "last_seen_post" (field "published" string))
+            (field "last_seen_post" (field "image_url" string))
+            (field "last_seen_post" (field "sold" Decode.bool))
+        )
+        RecentReleases.listDecoder
 
 
 
@@ -290,6 +295,7 @@ view model =
                 , el [ alignRight ] getAlertsButton
                 ]
             , viewStatus model.status
+            , viewRecentReleases model.status
             ]
         ]
 
@@ -359,34 +365,12 @@ viewStatus remote =
                                 , url = s.lastPostUrl
                                 }
                             ]
-                        , el
-                            [ alignLeft
-                            , paddingXY 10 4
-                            , Background.color
-                                (if s.sold then
-                                    rgb255 254 226 226
+                        , statusBadge s.sold
+                            (if s.sold then
+                                "Sold out"
 
-                                 else
-                                    rgb255 209 250 229
-                                )
-                            , Font.color
-                                (if s.sold then
-                                    rgb255 153 27 27
-
-                                 else
-                                    green700
-                                )
-                            , Border.rounded 999
-                            , Font.size 14
-                            , Font.semiBold
-                            ]
-                            (Element.text
-                                (if s.sold then
-                                    "Sold Out"
-
-                                 else
-                                    "Available"
-                                )
+                             else
+                                "Available"
                             )
                         , el [ Font.size 14, Font.color slate500 ]
                             (Element.text (cutOffTralingZeroes s.lastPostDate))
@@ -405,6 +389,134 @@ viewStatus remote =
                     , Element.text ("Days since last tool release: " ++ diffDatesInDays s.lastChecked s.lastPostDate)
                     ]
                 ]
+
+
+statusBadge : Bool -> String -> Element msg
+statusBadge sold label =
+    el
+        [ alignLeft
+        , paddingXY 10 4
+        , Background.color
+            (if sold then
+                rgb255 254 226 226
+
+             else
+                rgb255 209 250 229
+            )
+        , Font.color
+            (if sold then
+                rgb255 153 27 27
+
+             else
+                green700
+            )
+        , Border.rounded 999
+        , Font.size 14
+        , Font.semiBold
+        ]
+        (Element.text label)
+
+
+viewRecentReleases : RemoteData -> Element Msg
+viewRecentReleases remote =
+    let
+        heading =
+            el
+                [ Region.heading 2
+                , Font.size 13
+                , Font.color slate500
+                , Font.letterSpacing 1
+                , paddingEach { top = 0, right = 0, bottom = 8, left = 0 }
+                ]
+                (Element.text "RECENT RELEASES")
+
+        note msg =
+            el [ Font.size 14, Font.color slate500 ] (Element.text msg)
+    in
+    case remote of
+        NotAsked ->
+            none
+
+        Failure _ ->
+            none
+
+        Loading ->
+            column (cardAttrs ++ [ spacing 0, height (minimum 96 shrink) ])
+                [ heading, note "Loading recent releases..." ]
+
+        Success s ->
+            if List.isEmpty s.recentReleases then
+                column (cardAttrs ++ [ spacing 0 ])
+                    [ heading, note "No recent releases yet." ]
+
+            else
+                column (cardAttrs ++ [ spacing 0 ])
+                    [ heading
+                    , column
+                        [ width fill
+                        , spacing 0
+                        , htmlAttribute (HtmlAttr.attribute "role" "list")
+                        ]
+                        (List.indexedMap viewReleaseRow s.recentReleases)
+                    ]
+
+
+viewReleaseRow : Int -> Release -> Element Msg
+viewReleaseRow index r =
+    row
+        [ width fill
+        , spacing 12
+        , paddingXY 0 12
+        , Border.widthEach { top = 1, right = 0, bottom = 0, left = 0 }
+        , Border.color
+            (if index == 0 then
+                rgba255 226 232 240 0
+
+             else
+                rgb255 226 232 240
+            )
+        , htmlAttribute (HtmlAttr.attribute "role" "listitem")
+        ]
+        [ el
+            [ width (px 56)
+            , height (px 56)
+            , Border.rounded 8
+            , clip
+            , alignTop
+            , Background.color (rgb255 241 245 249)
+            , htmlAttribute (HtmlAttr.attribute "aria-hidden" "true")
+            ]
+            (if String.isEmpty r.imageUrl then
+                none
+
+             else
+                Element.image [ width (px 56), height (px 56) ]
+                    { src = r.imageUrl, description = "" }
+            )
+        , column [ width fill, spacing 6, alignTop ]
+            [ paragraph [ width fill ]
+                [ newTabLink
+                    [ htmlAttribute (HtmlAttr.attribute "aria-label" (r.title ++ " (opens in new tab)"))
+                    , focused [ Border.shadow { offset = ( 0, 0 ), blur = 0, size = 2, color = blue600 } ]
+                    ]
+                    { label =
+                        el
+                            [ Font.underline
+                            , Font.color blue600
+                            , Font.medium
+                            , Font.size 16
+                            ]
+                            (Element.text r.title)
+                    , url = r.url
+                    }
+                ]
+            , wrappedRow [ spacing 12 ]
+                [ statusBadge r.sold (RecentReleases.statusLabel r)
+                , el [ Font.size 14, Font.color slate500 ]
+                    (Element.text (cutOffTralingZeroes r.published))
+                ]
+            ]
+        ]
 
 
 viewModal : Model -> Element Msg

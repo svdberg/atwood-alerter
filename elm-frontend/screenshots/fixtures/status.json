@@ -6,5 +6,47 @@
     "published": "Mon, 10 Nov 2026 18:05:00 +0000",
     "image_url": "/icon.png",
     "sold": false
-  }
+  },
+  "recent_releases": [
+    {
+      "title": "Spring drop: three new Atwood Pry-Bars and a long-titled limited edition titanium keychain tool",
+      "url": "https://atwoodknives.blogspot.com/",
+      "published": "Mon, 10 Nov 2026 18:05:00 +0000",
+      "image_url": "/icon.png",
+      "sold": false,
+      "sold_at": null
+    },
+    {
+      "title": "Atwood Pry-Bar 2.0 restock",
+      "url": "https://atwoodknives.blogspot.com/",
+      "published": "Fri, 06 Nov 2026 17:00:00 +0000",
+      "image_url": "/icon.png",
+      "sold": true,
+      "sold_at": "2026-11-06T17:07:00Z"
+    },
+    {
+      "title": "Limited run: hand-finished titanium Spanner Wrench in three anodised colours (batch 12)",
+      "url": "https://atwoodknives.blogspot.com/",
+      "published": "Tue, 03 Nov 2026 16:00:00 +0000",
+      "image_url": "/icon.png",
+      "sold": true,
+      "sold_at": "2026-11-03T19:10:00Z"
+    },
+    {
+      "title": "Mini Prybar fall release",
+      "url": "https://atwoodknives.blogspot.com/",
+      "published": "Sat, 24 Oct 2026 15:30:00 +0000",
+      "image_url": "/icon.png",
+      "sold": true,
+      "sold_at": "2026-10-26T16:00:00Z"
+    },
+    {
+      "title": "Archive: legacy Scorpion release",
+      "url": "https://atwoodknives.blogspot.com/",
+      "published": "Mon, 12 Oct 2026 15:00:00 +0000",
+      "image_url": null,
+      "sold": true,
+      "sold_at": null
+    }
+  ]
 }
