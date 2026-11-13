@@ -5,6 +5,7 @@ import os
 import sys
 
 import boto3
+import pytest
 from moto import mock_aws
 
 # Add lambda directory to path
@@ -21,8 +22,15 @@ def reload_module(name):
     return importlib.import_module(name)
 
 
-@mock_aws
-def test_subscribe_lambda_valid_email():
+CORS_JSON_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "*",
+    "Content-Type": "application/json",
+}
+INVALID_EMAIL = {"error": "Please enter a valid email address."}
+
+
+def _subscribe_setup():
     ddb = boto3.client("dynamodb", region_name="us-east-1")
     ddb.create_table(
         TableName="Users",
@@ -35,13 +43,26 @@ def test_subscribe_lambda_valid_email():
 
     os.environ["USERS_TABLE"] = "Users"
     os.environ["NOTIFY_TOPIC_ARN"] = topic_arn
+    return reload_module("subscribe_lambda"), sns, topic_arn
 
-    subscribe_lambda = reload_module("subscribe_lambda")
+
+def _assert_cors_json(result):
+    for key, value in CORS_JSON_HEADERS.items():
+        assert result["headers"][key] == value
+
+
+@mock_aws
+def test_subscribe_lambda_valid_email():
+    subscribe_lambda, sns, topic_arn = _subscribe_setup()
 
     event = {"body": json.dumps({"email": "foo@example.com"})}
     result = subscribe_lambda.lambda_handler(event, None)
 
     assert result["statusCode"] == 200
+    assert json.loads(result["body"]) == {
+        "message": "Subscription requested. Check your email to confirm."
+    }
+    _assert_cors_json(result)
     table = boto3.resource("dynamodb", region_name="us-east-1").Table("Users")
     assert "Item" in table.get_item(Key={"user_id": "foo@example.com"})
     subs = sns.list_subscriptions_by_topic(TopicArn=topic_arn)["Subscriptions"]
@@ -50,25 +71,92 @@ def test_subscribe_lambda_valid_email():
 
 @mock_aws
 def test_subscribe_lambda_invalid_email():
-    ddb = boto3.client("dynamodb", region_name="us-east-1")
-    ddb.create_table(
-        TableName="Users",
-        KeySchema=[{"AttributeName": "user_id", "KeyType": "HASH"}],
-        AttributeDefinitions=[{"AttributeName": "user_id", "AttributeType": "S"}],
-        BillingMode="PAY_PER_REQUEST",
-    )
-    sns = boto3.client("sns", region_name="us-east-1")
-    topic_arn = sns.create_topic(Name="Notify")["TopicArn"]
-
-    os.environ["USERS_TABLE"] = "Users"
-    os.environ["NOTIFY_TOPIC_ARN"] = topic_arn
-
-    subscribe_lambda = reload_module("subscribe_lambda")
+    subscribe_lambda, _, _ = _subscribe_setup()
 
     event = {"body": json.dumps({"email": "bademail"})}
     result = subscribe_lambda.lambda_handler(event, None)
 
     assert result["statusCode"] == 400
+    assert json.loads(result["body"]) == INVALID_EMAIL
+    _assert_cors_json(result)
+
+
+@mock_aws
+@pytest.mark.parametrize(
+    "payload", [{}, {"email": ""}, {"email": 123}, {"email": None}]
+)
+def test_subscribe_lambda_bad_email_values(payload):
+    subscribe_lambda, _, _ = _subscribe_setup()
+
+    result = subscribe_lambda.lambda_handler({"body": json.dumps(payload)}, None)
+
+    assert result["statusCode"] == 400
+    assert json.loads(result["body"]) == INVALID_EMAIL
+    _assert_cors_json(result)
+
+
+@mock_aws
+@pytest.mark.parametrize("event", [{}, {"body": None}, {"body": ""}])
+def test_subscribe_lambda_missing_body(event, monkeypatch):
+    subscribe_lambda, sns, topic_arn = _subscribe_setup()
+
+    def boom(*args, **kwargs):
+        raise AssertionError("AWS must not be called")
+
+    monkeypatch.setattr(subscribe_lambda.table, "put_item", boom)
+    monkeypatch.setattr(subscribe_lambda.sns, "subscribe", boom)
+
+    result = subscribe_lambda.lambda_handler(event, None)
+
+    assert result["statusCode"] == 400
+    assert "error" in json.loads(result["body"])
+    _assert_cors_json(result)
+
+
+@mock_aws
+@pytest.mark.parametrize("raw", ["not json", "[1,2]"])
+def test_subscribe_lambda_malformed_body(raw):
+    subscribe_lambda, _, _ = _subscribe_setup()
+
+    result = subscribe_lambda.lambda_handler({"body": raw}, None)
+
+    assert result["statusCode"] == 400
+    assert json.loads(result["body"]) == {"error": "Invalid request body."}
+    _assert_cors_json(result)
+
+
+@mock_aws
+def test_subscribe_lambda_sns_failure_is_generic_and_logged(monkeypatch, capsys):
+    subscribe_lambda, _, _ = _subscribe_setup()
+
+    def boom(*args, **kwargs):
+        raise Exception("internal-detail-xyz")
+
+    monkeypatch.setattr(subscribe_lambda.sns, "subscribe", boom)
+
+    result = subscribe_lambda.lambda_handler(
+        {"body": json.dumps({"email": "foo@example.com"})}, None
+    )
+
+    assert result["statusCode"] == 500
+    assert json.loads(result["body"]) == {
+        "error": "Something went wrong. Please try again later."
+    }
+    assert "internal-detail-xyz" not in result["body"]
+    _assert_cors_json(result)
+    out = capsys.readouterr().out
+    assert "internal-detail-xyz" in out
+    assert "foo@example.com" not in out
+
+
+def test_json_response_helper():
+    http_response = reload_module("http_response")
+
+    result = http_response.json_response(418, {"a": 1})
+
+    assert result["statusCode"] == 418
+    assert result["headers"] == CORS_JSON_HEADERS
+    assert result["body"] == '{"a": 1}'
 
 
 @mock_aws
@@ -92,9 +180,31 @@ def test_subscribe_web_lambda_registers_subscription():
     result = subscribe_web_lambda.lambda_handler(event, None)
 
     assert result["statusCode"] == 200
+    _assert_cors_json(result)
     sub_id = hashlib.sha256(json.dumps(body).encode()).hexdigest()
     table = boto3.resource("dynamodb", region_name="us-east-1").Table("WebPush")
     assert "Item" in table.get_item(Key={"subscription_id": sub_id})
+
+
+@mock_aws
+def test_subscribe_web_lambda_missing_endpoint():
+    ddb = boto3.client("dynamodb", region_name="us-east-1")
+    ddb.create_table(
+        TableName="WebPush",
+        KeySchema=[{"AttributeName": "subscription_id", "KeyType": "HASH"}],
+        AttributeDefinitions=[
+            {"AttributeName": "subscription_id", "AttributeType": "S"}
+        ],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    os.environ["WEB_PUSH_TABLE"] = "WebPush"
+    subscribe_web_lambda = reload_module("subscribe_web_lambda")
+
+    result = subscribe_web_lambda.lambda_handler({"body": json.dumps({})}, None)
+
+    assert result["statusCode"] == 400
+    assert json.loads(result["body"]) == {"error": "Missing endpoint in subscription"}
+    _assert_cors_json(result)
 
 
 @mock_aws

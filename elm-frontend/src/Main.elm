@@ -87,7 +87,7 @@ type Msg
     = GotStatus (Result Http.Error StatusData)
     | UpdateEmail String
     | Submit
-    | GotSubscriptionResult (Result Http.Error String)
+    | GotSubscriptionResult (Result (Maybe String) ())
     | Tick
     | RequestPushRegistration
     | PushPermissionResult PushStatus
@@ -131,7 +131,7 @@ update msg model =
                     ( { model | status = Failure "Could not load status." }, scheduleTick )
 
         UpdateEmail val ->
-            ( { model | email = val }, Cmd.none )
+            ( applyState (SignupModal.onEmailChange val (toState model)) model, Cmd.none )
 
         Submit ->
             if model.statusMsg == Sending then
@@ -141,16 +141,7 @@ update msg model =
                 submit model
 
         GotSubscriptionResult result ->
-            let
-                ok =
-                    case result of
-                        Ok _ ->
-                            True
-
-                        Err _ ->
-                            False
-            in
-            ( applyState (SignupModal.onSubscribeResult ok (toState model)) model, Cmd.none )
+            ( applyState (SignupModal.onSubscribeResult result (toState model)) model, Cmd.none )
 
         Tick ->
             ( model, fetchStatus )
@@ -187,6 +178,19 @@ applyState state model =
     { model | signupOpen = state.open, email = state.email, statusMsg = state.statusMsg }
 
 
+subscribeResponse : Http.Response String -> Result (Maybe String) ()
+subscribeResponse response =
+    case response of
+        Http.GoodStatus_ _ _ ->
+            Ok ()
+
+        Http.BadStatus_ _ body ->
+            Err (SignupModal.errorMessage body)
+
+        _ ->
+            Err (Just SignupModal.networkErrorMessage)
+
+
 submit : Model -> ( Model, Cmd Msg )
 submit model =
     let
@@ -197,7 +201,7 @@ submit model =
             Http.post
                 { url = apiBaseUrl ++ "/subscribe"
                 , body = body
-                , expect = Http.expectString GotSubscriptionResult
+                , expect = Http.expectStringResponse GotSubscriptionResult subscribeResponse
                 }
     in
     ( { model | statusMsg = Sending }, request )
@@ -527,7 +531,7 @@ viewStatusMsg status =
 
         Error msg ->
             paragraph [ Font.color red700 ]
-                [ Element.text ("! " ++ msg ++ " Please check the address and try again.") ]
+                [ Element.text ("! " ++ msg) ]
 
 
 viewPushSection : PushStatus -> Element Msg
