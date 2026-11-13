@@ -162,6 +162,8 @@ def create_web_push_lambda(
             "lambda/lambda-docker", platform=Platform.LINUX_AMD64
         ),
         timeout=Duration.seconds(30),
+        # More memory means more CPU, which cuts cold-start init time.
+        memory_size=512,
         environment={
             "WEB_PUSH_TABLE": web_push_table.table_name,
             "ENVIRONMENT": env_config.name,

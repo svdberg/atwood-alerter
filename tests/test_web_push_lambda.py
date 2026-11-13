@@ -92,3 +92,87 @@ def test_handler_deletes_gone_subscription(monkeypatch):
     mod.lambda_handler(_event({"title": "T", "url": U}), None)
     ids = {i["subscription_id"] for i in table.scan()["Items"]}
     assert ids == {"b"}
+
+
+def _load_without_key(monkeypatch, environment="production"):
+    # Like _load(), but leaves VAPID_PRIVATE_KEY unset after _load sets it.
+    monkeypatch.setenv("ENVIRONMENT", environment)
+    monkeypatch.setenv("WEB_PUSH_TABLE", "WebPushTest")
+    monkeypatch.delenv("VAPID_PRIVATE_KEY", raising=False)
+    ddb = boto3.resource("dynamodb")
+    table = ddb.create_table(
+        TableName="WebPushTest",
+        KeySchema=[{"AttributeName": "subscription_id", "KeyType": "HASH"}],
+        AttributeDefinitions=[
+            {"AttributeName": "subscription_id", "AttributeType": "S"}
+        ],
+        BillingMode="PAY_PER_REQUEST",
+    )
+    table.put_item(
+        Item={
+            "subscription_id": "a",
+            "subscription": json.dumps({"endpoint": "https://push.example/a"}),
+        }
+    )
+    sys.modules.pop("web_push_lambda", None)
+    mod = importlib.import_module("web_push_lambda")
+    monkeypatch.setattr(mod.cloudwatch, "put_metric_data", lambda **kw: None)
+    return mod
+
+
+def _count_ssm(monkeypatch, mod):
+    names = []
+    real = mod.ssm.get_parameter
+
+    def wrapper(**kw):
+        names.append(kw["Name"])
+        return real(**kw)
+
+    monkeypatch.setattr(mod.ssm, "get_parameter", wrapper)
+    return names
+
+
+@mock_aws
+def test_import_makes_no_ssm_call(monkeypatch):
+    # No env key and no SSM parameter: import must still succeed.
+    mod = _load_without_key(monkeypatch)
+    assert mod._vapid_private_key is None
+
+
+@mock_aws
+def test_staging_key_fetched_from_ssm_and_cached(monkeypatch):
+    mod = _load_without_key(monkeypatch, "staging")
+    boto3.client("ssm").put_parameter(
+        Name="/atwood/staging/vapid_private_key",
+        Value="staging-secret",
+        Type="SecureString",
+    )
+    names = _count_ssm(monkeypatch, mod)
+    calls = []
+    monkeypatch.setattr(mod, "webpush", lambda **kw: calls.append(kw))
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    assert [kw["vapid_private_key"] for kw in calls] == ["staging-secret"] * 2
+    assert names == ["/atwood/staging/vapid_private_key"]
+
+
+@mock_aws
+def test_env_key_used_without_ssm(monkeypatch):
+    mod, _ = _load(monkeypatch)  # sets VAPID_PRIVATE_KEY=dummy
+    names = _count_ssm(monkeypatch, mod)
+    calls = []
+    monkeypatch.setattr(mod, "webpush", lambda **kw: calls.append(kw))
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    assert calls and all(kw["vapid_private_key"] == "dummy" for kw in calls)
+    assert names == []
+
+
+@mock_aws
+def test_production_key_path(monkeypatch):
+    mod = _load_without_key(monkeypatch, "production")
+    boto3.client("ssm").put_parameter(
+        Name="/atwood/vapid_private_key", Value="prod-secret", Type="SecureString"
+    )
+    names = _count_ssm(monkeypatch, mod)
+    assert mod.get_vapid_private_key() == "prod-secret"
+    assert names == ["/atwood/vapid_private_key"]
