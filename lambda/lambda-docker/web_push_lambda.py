@@ -1,5 +1,6 @@
 import json
 import os
+from typing import Optional
 from urllib.parse import urlparse
 
 import boto3
@@ -19,20 +20,29 @@ def get_secure_param(name):
     return ssm.get_parameter(Name=name, WithDecryption=True)["Parameter"]["Value"]
 
 
-def get_vapid_private_key():
-    """Get VAPID private key from environment variable or SSM Parameter Store."""
+_vapid_private_key: Optional[str] = None
+
+
+def get_vapid_private_key() -> str:
+    """Get the VAPID private key, fetching it on first use and caching it."""
+    global _vapid_private_key
+    if _vapid_private_key is not None:
+        return _vapid_private_key
+
     # First try environment variable (for CI/CD)
-    if "VAPID_PRIVATE_KEY" in os.environ:
-        return os.environ["VAPID_PRIVATE_KEY"]
-
-    # Then try environment-specific SSM parameter
-    if ENVIRONMENT == "staging":
-        return get_secure_param("/atwood/staging/vapid_private_key")
+    key: str
+    env_key = os.environ.get("VAPID_PRIVATE_KEY")
+    if env_key is not None:
+        key = env_key
+    elif ENVIRONMENT == "staging":
+        key = get_secure_param("/atwood/staging/vapid_private_key")
     else:
-        return get_secure_param("/atwood/vapid_private_key")
+        key = get_secure_param("/atwood/vapid_private_key")
+
+    _vapid_private_key = key
+    return key
 
 
-VAPID_PRIVATE_KEY = get_vapid_private_key()
 VAPID_SUB = "mailto:svdberg@me.com"
 
 
@@ -56,6 +66,7 @@ def push_headers() -> dict:
 
 
 def lambda_handler(event, context):
+    vapid_private_key = get_vapid_private_key()
     # You can extract a message from the SNS payload
     for record in event["Records"]:
         msg = json.loads(record["Sns"]["Message"])
@@ -76,7 +87,7 @@ def lambda_handler(event, context):
                 webpush(
                     subscription_info=sub,
                     data=push_data,
-                    vapid_private_key=VAPID_PRIVATE_KEY,
+                    vapid_private_key=vapid_private_key,
                     vapid_claims=vapid_claims,
                     headers=push_headers(),
                     ttl=PUSH_TTL_SECONDS,
