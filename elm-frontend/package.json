@@ -17,6 +17,7 @@
   "scripts": {
     "build": "postcss styles/tailwind.css -o dist/tailwind.css",
     "watch": "postcss styles/tailwind.css -o dist/tailwind.css --watch",
-    "screenshots": "node screenshots/capture.mjs dist screenshots/out"
+    "screenshots": "node screenshots/capture.mjs dist screenshots/out",
+    "test:sw": "node --test tests-js/sw.test.mjs"
   }
 }

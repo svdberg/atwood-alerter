@@ -3,6 +3,7 @@ import os
 import re
 import unicodedata
 from datetime import datetime, timezone
+from typing import Optional
 
 import boto3
 import feedparser
@@ -160,8 +161,22 @@ SUBJECT_PREFIX = "New Atwood release"
 MAX_SUBJECT_LEN = 99
 
 
+def _safe_image_url(value) -> Optional[str]:
+    if isinstance(value, str) and value.startswith("https://"):
+        return value
+    return None
+
+
 def build_push_payload(post) -> dict:
-    return {"title": "New Blog Post!", "body": post["title"], "url": post["url"]}
+    body = post["title"]
+    if post.get("sold"):
+        body = f"{body} (already sold out)"
+    return {
+        "title": SUBJECT_PREFIX,
+        "body": body,
+        "url": post["url"],
+        "image_url": _safe_image_url(post.get("image_url")),
+    }
 
 
 def build_email_subject(title: str) -> str:
