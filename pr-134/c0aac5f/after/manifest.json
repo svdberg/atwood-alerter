@@ -1,0 +1,13 @@
+{
+  "shots": [
+    "desktop-main.png",
+    "desktop-recent-empty.png",
+    "desktop-signup-dialog.png",
+    "desktop-admin.png",
+    "mobile-main.png",
+    "mobile-recent-empty.png",
+    "mobile-signup-dialog.png",
+    "mobile-admin.png"
+  ],
+  "errors": []
+}
