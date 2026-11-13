@@ -390,7 +390,12 @@ def _capture_publish(mod):
 def test_notify_subscribers_publishes_per_protocol_message():
     mod, _ = _scraper_env()
     published, real = _capture_publish(mod)
-    post = {"title": "Spring drop", "url": "https://example.com/p", "sold": False}
+    post = {
+        "title": "Spring drop",
+        "url": "https://example.com/p",
+        "sold": False,
+        "image_url": "https://img/x.jpg",
+    }
     try:
         mod.notify_subscribers(post)
     finally:
@@ -403,10 +408,12 @@ def test_notify_subscribers_publishes_per_protocol_message():
     message = json.loads(kwargs["Message"])
     assert set(message) == {"default", "email", "lambda"}
     assert all(isinstance(v, str) for v in message.values())
-    expected = {
-        "title": "New Blog Post!",
+    expected = mod.build_push_payload(post)
+    assert expected == {
+        "title": "New Atwood release",
         "body": "Spring drop",
         "url": "https://example.com/p",
+        "image_url": "https://img/x.jpg",
     }
     assert json.loads(message["lambda"]) == expected
     assert json.loads(message["default"]) == expected
@@ -417,6 +424,37 @@ def test_notify_subscribers_publishes_per_protocol_message():
         raise AssertionError("email body must not be JSON")
     except ValueError:
         pass
+
+
+@mock_aws
+def test_push_payload_fields_and_sold():
+    mod, _ = _scraper_env()
+    post = {
+        "title": "Spring drop",
+        "url": "https://example.com/p",
+        "sold": False,
+        "image_url": "https://img/x.jpg",
+    }
+    assert mod.build_push_payload(post) == {
+        "title": "New Atwood release",
+        "body": "Spring drop",
+        "url": "https://example.com/p",
+        "image_url": "https://img/x.jpg",
+    }
+    sold = mod.build_push_payload({**post, "sold": True})
+    assert sold["body"] == "Spring drop (already sold out)"
+
+
+@mock_aws
+@pytest.mark.parametrize(
+    "value", [None, "", "http://img/x.jpg", "data:image/png;base64,AAAA", 5]
+)
+def test_push_payload_rejects_unsafe_image_url(value):
+    mod, _ = _scraper_env()
+    post = {"title": "T", "url": "https://example.com/p", "image_url": value}
+    assert mod.build_push_payload(post)["image_url"] is None
+    post.pop("image_url")
+    assert mod.build_push_payload(post)["image_url"] is None
 
 
 @mock_aws

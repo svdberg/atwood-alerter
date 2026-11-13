@@ -36,10 +36,30 @@ VAPID_PRIVATE_KEY = get_vapid_private_key()
 VAPID_SUB = "mailto:svdberg@me.com"
 
 
+PUSH_TTL_SECONDS = 600
+
+
+def build_push_data(msg: dict) -> str:
+    return json.dumps(
+        {
+            "title": msg.get("title", "Atwood Blog"),
+            "body": msg.get("body", "New post!"),
+            "url": msg.get("url", "https://atwoodknives.blogspot.com/"),
+            "image_url": msg.get("image_url"),
+        }
+    )
+
+
+def push_headers() -> dict:
+    # pywebpush mutates the headers dict, so never share one between calls.
+    return {"Urgency": "high"}
+
+
 def lambda_handler(event, context):
     # You can extract a message from the SNS payload
     for record in event["Records"]:
-        msg = record["Sns"]["Message"]
+        msg = json.loads(record["Sns"]["Message"])
+        push_data = build_push_data(msg)
 
         # Scan all subscriptions
         response = table.scan()
@@ -53,16 +73,13 @@ def lambda_handler(event, context):
 
                 vapid_claims = {"sub": VAPID_SUB, "aud": origin}
 
-                json_msg = json.loads(msg)  # Parse it back into a dict
-                title = json_msg.get("title", "Atwood Blog")
-                body = json_msg.get("body", "New post!")
-                url = json_msg.get("url", "https://atwoodknives.blogspot.com/")
-
                 webpush(
                     subscription_info=sub,
-                    data=json.dumps({"title": title, "body": body, "url": url}),
+                    data=push_data,
                     vapid_private_key=VAPID_PRIVATE_KEY,
                     vapid_claims=vapid_claims,
+                    headers=push_headers(),
+                    ttl=PUSH_TTL_SECONDS,
                 )
 
                 # Successful push
