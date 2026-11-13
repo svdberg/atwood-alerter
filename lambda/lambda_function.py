@@ -4,6 +4,7 @@ import re
 import unicodedata
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlsplit
 
 import boto3
 import feedparser
@@ -127,7 +128,48 @@ def _first_img_src(html: str) -> str | None:
     return None
 
 
+BLOGGER_IMAGE_SIZE = "s1200"
+_BLOGGER_SIZE_TOKEN = re.compile(r"^(s\d+|w\d+|h\d+|w\d+-h\d+)(-[a-z0-9]+)*$")
+_BLOGGER_SUFFIX_TOKEN = re.compile(r"=(s\d+|w\d+|h\d+|w\d+-h\d+)(-[a-z0-9]+)*$")
+_BLOGGER_HOST = re.compile(
+    r"^(blogger\.googleusercontent\.com|[a-z0-9-]+\.bp\.blogspot\.com"
+    r"|lh[3-6]\.googleusercontent\.com)$"
+)
+
+
+def upscale_blogger_image_url(url: str | None) -> str | None:
+    """Rewrite the size token of a Blogger image URL to BLOGGER_IMAGE_SIZE.
+
+    Handles the path-segment form (``.../s72-c/file.jpg``) and the suffix form
+    (``.../AVvX=s72-c``). Non-Blogger URLs and URLs without a size token are
+    returned unchanged.
+    """
+    if not isinstance(url, str) or not url:
+        return url
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return url
+    if not _BLOGGER_HOST.match(host):
+        return url
+
+    path = parts.path
+    segments = path.split("/")
+    if _BLOGGER_SUFFIX_TOKEN.search(segments[-1]):
+        segments[-1] = _BLOGGER_SUFFIX_TOKEN.sub(f"={BLOGGER_IMAGE_SIZE}", segments[-1])
+    elif len(segments) >= 2 and _BLOGGER_SIZE_TOKEN.match(segments[-2]):
+        segments[-2] = BLOGGER_IMAGE_SIZE
+    else:
+        return url
+    return parts._replace(path="/".join(segments)).geturl()
+
+
 def extract_image_from_entry(entry) -> str | None:
+    return upscale_blogger_image_url(_find_image_url(entry))
+
+
+def _find_image_url(entry) -> str | None:
     # 1. Try media_content (most common in RSS feeds with media)
     if "media_content" in entry:
         media = entry.media_content
