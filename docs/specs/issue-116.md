@@ -30,22 +30,22 @@ Out of scope:
 All changes are in `lambda/lambda_function.py`. Add pure helper functions so
 that tests can call them without SNS:
 
-- `SUBJECT_PREFIX = "New Atwood release"` and `MAX_SUBJECT_LEN = 100`.
+- `SUBJECT_PREFIX = "New Atwood release"` and `MAX_SUBJECT_LEN = 99`.
 - `build_push_payload(post) -> dict`: returns exactly
   `{"title": "New Blog Post!", "body": post["title"], "url": post["url"]}`.
   This is the same as today. It is a dict-building function so that a later
   `image_url` key is a one-line change.
 - `build_email_subject(title: str) -> str`: sanitises the title to fit SNS
   `Subject` rules (ASCII printable, no line breaks or control characters,
-  1 to 100 characters):
+  1 to 99 characters; SNS requires fewer than 100):
   1. `unicodedata.normalize("NFKD", title)`, then `.encode("ascii", "ignore")`,
      so that "Café" becomes "Cafe" and emoji are dropped.
   2. Replace each run of whitespace or control characters (including `\r`,
      `\n`, `\t`) with a single space, then strip.
   3. If the result is empty, return `"New Atwood release"`. Otherwise use
      `f"{SUBJECT_PREFIX}: {clean}"`.
-  4. If the subject is longer than 100 characters, cut it to 97 characters,
-     strip trailing spaces and add `"..."`. The result is at most 100
+  4. If the subject is longer than 99 characters, cut it to 96 characters,
+     strip trailing spaces and add `"..."`. The result is at most 99
      characters.
 - `build_email_body(post) -> str`: plain text with Unicode allowed and the
   original title kept:
@@ -94,7 +94,7 @@ infra or API impact.
 6. `message["email"]` contains `Status: Available` when `sold` is `False` or
    missing, and `Status: Sold out` when `sold` is `True`.
 7. For `title="Spring drop"`, `Subject == "New Atwood release: Spring drop"`.
-8. For a title of 200 characters, the subject is at most 100 characters,
+8. For a title of 200 characters, the subject is at most 99 characters (`len(subject) < 100`),
    starts with `"New Atwood release: "` and ends with `"..."`.
 9. For a title with non-ASCII characters, newlines or tabs (for example
    `"Café\nPry-Bar 🔪\tdrop"`), the subject is ASCII-only, has no characters

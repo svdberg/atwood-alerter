@@ -157,7 +157,7 @@ def extract_image_from_entry(entry) -> str | None:
 
 
 SUBJECT_PREFIX = "New Atwood release"
-MAX_SUBJECT_LEN = 100
+MAX_SUBJECT_LEN = 99
 
 
 def build_push_payload(post) -> dict:

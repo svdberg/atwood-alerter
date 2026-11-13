@@ -322,7 +322,7 @@ def test_email_body_sold_status():
 def test_email_subject_truncates_long_title():
     mod, _ = _scraper_env()
     subject = mod.build_email_subject("a" * 200)
-    assert len(subject) <= 100
+    assert len(subject) < 100
     assert subject.startswith("New Atwood release: ")
     assert subject.endswith("...")
 
