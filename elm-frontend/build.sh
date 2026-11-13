@@ -97,8 +97,18 @@ case $ENVIRONMENT in
   *)          VAPID_PARAM="/atwood/staging/vapid_public_key" ;;
 esac
 if [ -z "$VAPID_PUBLIC_KEY" ] && command -v aws >/dev/null 2>&1 && aws sts get-caller-identity >/dev/null 2>&1; then
+  # --with-decryption: the parameter may be a SecureString (production's is).
+  # Without it SSM returns KMS ciphertext ("AQICAH…") instead of the key.
   VAPID_PUBLIC_KEY=$(aws ssm get-parameter --name "$VAPID_PARAM" --region "$AWS_REGION" \
-    --query "Parameter.Value" --output text 2>/dev/null | tr -d '[:space:]') || VAPID_PUBLIC_KEY=""
+    --with-decryption --query "Parameter.Value" --output text 2>/dev/null | tr -d '[:space:]') || VAPID_PUBLIC_KEY=""
+fi
+# A VAPID public key is an uncompressed P-256 point: 65 bytes, base64url
+# without padding = 87 characters, starting with "B". Anything else (e.g.
+# ciphertext, a private key, a typo) would silently break push.
+if [ -n "$VAPID_PUBLIC_KEY" ] && [ "$VAPID_PUBLIC_KEY" != "None" ] \
+   && ! [[ "$VAPID_PUBLIC_KEY" =~ ^B[A-Za-z0-9_-]{86}$ ]]; then
+  echo "::error::VAPID public key for $ENVIRONMENT (from ${VAPID_PARAM} or \$VAPID_PUBLIC_KEY) is not a valid base64url P-256 public key: ${VAPID_PUBLIC_KEY:0:12}…"
+  exit 1
 fi
 if [ -z "$VAPID_PUBLIC_KEY" ] || [ "$VAPID_PUBLIC_KEY" = "None" ]; then
   if [ "$ENVIRONMENT" = "production" ]; then
