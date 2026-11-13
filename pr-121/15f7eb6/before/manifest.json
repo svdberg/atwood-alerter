@@ -1,0 +1,11 @@
+{
+  "shots": [
+    "desktop-main.png",
+    "desktop-signup-dialog.png",
+    "desktop-admin.png",
+    "mobile-main.png",
+    "mobile-signup-dialog.png",
+    "mobile-admin.png"
+  ],
+  "errors": []
+}
