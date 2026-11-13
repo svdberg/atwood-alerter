@@ -86,6 +86,36 @@ if [ -z "$API_BASE_URL" ] || [ "$API_BASE_URL" = "None" ]; then
   echo "This will be updated after deployment when the real API URL is available."
 fi
 
+# VAPID public key for web push. It must belong to the same key pair the
+# environment's push Lambda signs with (SSM /atwood/staging/vapid_private_key
+# on staging, /atwood/vapid_private_key on production), or push services
+# reject every message (Apple: "VapidPkHashMismatch").
+# Order: $VAPID_PUBLIC_KEY env var, then the environment's SSM parameter.
+PRODUCTION_VAPID_PUBLIC_KEY="BEnxJVSWp29XBixAH33uFwYsKxYjDkiXbswbDDWwvCS-Lkx09lXCPSxS55cNPk6tRQDF2uzpJbYFzMeSyKxVRYk"
+case $ENVIRONMENT in
+  production) VAPID_PARAM="/atwood/vapid_public_key" ;;
+  *)          VAPID_PARAM="/atwood/staging/vapid_public_key" ;;
+esac
+if [ -z "$VAPID_PUBLIC_KEY" ] && command -v aws >/dev/null 2>&1 && aws sts get-caller-identity >/dev/null 2>&1; then
+  VAPID_PUBLIC_KEY=$(aws ssm get-parameter --name "$VAPID_PARAM" --region "$AWS_REGION" \
+    --query "Parameter.Value" --output text 2>/dev/null | tr -d '[:space:]') || VAPID_PUBLIC_KEY=""
+fi
+if [ -z "$VAPID_PUBLIC_KEY" ] || [ "$VAPID_PUBLIC_KEY" = "None" ]; then
+  if [ "$ENVIRONMENT" = "production" ]; then
+    # Long-standing production key; keeps existing production subscribers working.
+    VAPID_PUBLIC_KEY="$PRODUCTION_VAPID_PUBLIC_KEY"
+    echo "VAPID public key: SSM $VAPID_PARAM unavailable, using the built-in production key"
+  else
+    VAPID_PUBLIC_KEY="VAPID_PUBLIC_KEY_UNSET"
+    echo "Warning: no VAPID public key for $ENVIRONMENT; push notifications will be disabled in this build"
+  fi
+else
+  echo "VAPID public key for $ENVIRONMENT: ${VAPID_PUBLIC_KEY:0:12}… (from ${VAPID_PARAM})"
+  if [ "$ENVIRONMENT" = "production" ] && [ "$VAPID_PUBLIC_KEY" != "$PRODUCTION_VAPID_PUBLIC_KEY" ]; then
+    echo "::warning::Production VAPID public key in SSM differs from the long-standing key; existing subscribers will be re-subscribed on their next visit"
+  fi
+fi
+
 # Remove trailing slash from API_BASE_URL to avoid double slashes
 API_BASE_URL=$(echo "$API_BASE_URL" | sed 's:/*$::')
 
@@ -117,7 +147,7 @@ cat dist/admin/index.html | sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" > d
 mv dist/admin/index.html.tmp dist/admin/index.html
 
 # Replace API URL in index.html (portable across macOS and Linux)
-cat dist/index.html | sed "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" > dist/index.html.tmp
+cat dist/index.html | sed -e "s|API_BASE_URL_PLACEHOLDER|$API_BASE_URL|g" -e "s|VAPID_PUBLIC_KEY_PLACEHOLDER|$VAPID_PUBLIC_KEY|g" > dist/index.html.tmp
 mv dist/index.html.tmp dist/index.html
 
 # Build Tailwind CSS

@@ -21,7 +21,10 @@
 	try {
 'use strict';
 
-  const applicationServerKey = 'BEnxJVSWp29XBixAH33uFwYsKxYjDkiXbswbDDWwvCS-Lkx09lXCPSxS55cNPk6tRQDF2uzpJbYFzMeSyKxVRYk'; // Replace with base64 VAPID public key
+  // Per-environment VAPID public key, filled in by build.sh. It must match the
+  // key the environment's push Lambda signs with.
+  const applicationServerKey = 'VAPID_PUBLIC_KEY_PLACEHOLDER';
+  const pushConfigured = /^[A-Za-z0-9_-]{80,}$/.test(applicationServerKey);
 
   const urlBase64ToUint8Array = (base64String) => {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -40,9 +43,29 @@
 	app.ports.pushRegistrationResponse.send(permission);
   };
 
+  // True if the subscription was created with a different VAPID key, e.g.
+  // before staging and production got separate keys. Push services reject
+  // messages signed with any other key, so such a subscription is useless.
+  const createdWithOtherKey = (sub) => {
+    const key = sub.options && sub.options.applicationServerKey;
+    if (!key) return false; // browser doesn't expose it; assume fine
+    const current = urlBase64ToUint8Array(applicationServerKey);
+    const existing = new Uint8Array(key);
+    return existing.length !== current.length || existing.some((b, i) => b !== current[i]);
+  };
+
   const subscribeToPush = async () => {
+    if (!pushConfigured) {
+      console.warn('Push notifications are not configured for this build.');
+      return;
+    }
     const reg = await registerServiceWorker();
     let sub = await reg.pushManager.getSubscription();
+    if (sub && createdWithOtherKey(sub)) {
+      console.log('Push subscription uses an outdated key; re-subscribing.');
+      await sub.unsubscribe();
+      sub = null;
+    }
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
@@ -51,7 +74,6 @@
     }
     console.log('Push subscription:', JSON.stringify(sub));
 
-    // TODO: Send to your backend via fetch
     await fetch('API_BASE_URL_PLACEHOLDER' + '/register-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
