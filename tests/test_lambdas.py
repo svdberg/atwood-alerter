@@ -262,3 +262,83 @@ def test_record_notification_increments_month():
     assert item["posts_announced"] == 2
     assert item["email_recipients"] == 5
     assert item["last_sent"].startswith("2026-11-30")
+
+
+def _capture_publish(mod):
+    published = []
+    real = mod.sns.publish
+
+    def spy(**kwargs):
+        published.append(kwargs)
+        return real(**kwargs)
+
+    mod.sns.publish = spy
+    return published, real
+
+
+@mock_aws
+def test_notify_subscribers_publishes_per_protocol_message():
+    mod, _ = _scraper_env()
+    published, real = _capture_publish(mod)
+    post = {"title": "Spring drop", "url": "https://example.com/p", "sold": False}
+    try:
+        mod.notify_subscribers(post)
+    finally:
+        mod.sns.publish = real
+    assert len(published) == 1
+    kwargs = published[0]
+    assert kwargs["MessageStructure"] == "json"
+    assert kwargs["TopicArn"] == os.environ["NOTIFY_TOPIC_ARN"]
+    assert kwargs["Subject"] == "New Atwood release: Spring drop"
+    message = json.loads(kwargs["Message"])
+    assert set(message) == {"default", "email", "lambda"}
+    assert all(isinstance(v, str) for v in message.values())
+    expected = {
+        "title": "New Blog Post!",
+        "body": "Spring drop",
+        "url": "https://example.com/p",
+    }
+    assert json.loads(message["lambda"]) == expected
+    assert json.loads(message["default"]) == expected
+    assert "Spring drop" in message["email"]
+    assert post["url"] in message["email"].splitlines()
+    try:
+        json.loads(message["email"])
+        raise AssertionError("email body must not be JSON")
+    except ValueError:
+        pass
+
+
+@mock_aws
+def test_email_body_sold_status():
+    mod, _ = _scraper_env()
+    base = {"title": "T", "url": "https://example.com/p"}
+    assert "Status: Available" in mod.build_email_body({**base, "sold": False})
+    assert "Status: Available" in mod.build_email_body(base)
+    assert "Status: Sold out" in mod.build_email_body({**base, "sold": True})
+
+
+@mock_aws
+def test_email_subject_truncates_long_title():
+    mod, _ = _scraper_env()
+    subject = mod.build_email_subject("a" * 200)
+    assert len(subject) <= 100
+    assert subject.startswith("New Atwood release: ")
+    assert subject.endswith("...")
+
+
+@mock_aws
+def test_email_subject_sanitises_non_ascii_and_newlines():
+    mod, _ = _scraper_env()
+    subject = mod.build_email_subject("Café\nPry-Bar 🔪\tdrop")
+    assert subject == "New Atwood release: Cafe Pry-Bar drop"
+    assert subject.isascii()
+    assert all(0x20 <= ord(c) < 0x7F for c in subject)
+    assert "  " not in subject
+
+
+@mock_aws
+def test_email_subject_fallback_when_empty():
+    mod, _ = _scraper_env()
+    for title in ("", "🔪🔪"):
+        assert mod.build_email_subject(title) == "New Atwood release"
