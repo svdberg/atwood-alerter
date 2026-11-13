@@ -490,3 +490,74 @@ def test_email_subject_fallback_when_empty():
     mod, _ = _scraper_env()
     for title in ("", "🔪🔪"):
         assert mod.build_email_subject(title) == "New Atwood release"
+
+
+BLOGGER = "https://blogger.googleusercontent.com"
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        (None, None),
+        ("", ""),
+        (
+            f"{BLOGGER}/img/b/R29v/AVvX/s72-c/PXL_1.jpg",
+            f"{BLOGGER}/img/b/R29v/AVvX/s1200/PXL_1.jpg",
+        ),
+        (
+            f"{BLOGGER}/img/b/R29v/AVvX/s1600/a.jpg",
+            f"{BLOGGER}/img/b/R29v/AVvX/s1200/a.jpg",
+        ),
+        (
+            f"{BLOGGER}/img/b/R29v/AVvX/w640-h480/a.jpg",
+            f"{BLOGGER}/img/b/R29v/AVvX/s1200/a.jpg",
+        ),
+        (
+            f"{BLOGGER}/img/b/R29v/AVvX/w640-h480-p-k-no-nu/a.jpg",
+            f"{BLOGGER}/img/b/R29v/AVvX/s1200/a.jpg",
+        ),
+        (f"{BLOGGER}/img/a/AVvX=s72-c", f"{BLOGGER}/img/a/AVvX=s1200"),
+        (f"{BLOGGER}/img/a/AVvX=w640-h480", f"{BLOGGER}/img/a/AVvX=s1200"),
+        (
+            "https://1.bp.blogspot.com/-abc/XYZ/s72-c/k.jpg",
+            "https://1.bp.blogspot.com/-abc/XYZ/s1200/k.jpg",
+        ),
+        (
+            "https://lh3.googleusercontent.com/a/s72-c/k.jpg",
+            "https://lh3.googleusercontent.com/a/s1200/k.jpg",
+        ),
+        ("http://img.test/img.jpg", "http://img.test/img.jpg"),
+        ("https://example.com/s72-c/a.jpg", "https://example.com/s72-c/a.jpg"),
+        (
+            "https://blogger.googleusercontent.com.evil.test/img/s72-c/a.jpg",
+            "https://blogger.googleusercontent.com.evil.test/img/s72-c/a.jpg",
+        ),
+        (f"{BLOGGER}/img/b/X/Y/a.jpg", f"{BLOGGER}/img/b/X/Y/a.jpg"),
+        (
+            f"{BLOGGER}/img/b/X/Y/s1600/s72-c.jpg",
+            f"{BLOGGER}/img/b/X/Y/s1200/s72-c.jpg",
+        ),
+        (f"{BLOGGER}/img/b/X/Y/s72-c.jpg", f"{BLOGGER}/img/b/X/Y/s72-c.jpg"),
+        (f"{BLOGGER}/img/b/X/s72-c/a.jpg?x=1", f"{BLOGGER}/img/b/X/s1200/a.jpg?x=1"),
+    ],
+)
+@mock_aws
+def test_upscale_blogger_image_url(url, expected):
+    mod, _ = _scraper_env()
+    result = mod.upscale_blogger_image_url(url)
+    assert result == expected
+    assert mod.upscale_blogger_image_url(result) == result
+
+
+@mock_aws
+def test_extract_image_from_entry_upscales_blogger_urls():
+    mod, _ = _scraper_env()
+
+    class Entry(dict):
+        __getattr__ = dict.get
+
+    thumb = f"{BLOGGER}/img/b/R29v/AVvX/s72-c/PXL_1.jpg"
+    full = f"{BLOGGER}/img/b/R29v/AVvX/s1200/PXL_1.jpg"
+    assert mod.extract_image_from_entry(Entry(media_thumbnail=[{"url": thumb}])) == full
+    summary = f'<div><img src="{thumb}"></div>'
+    assert mod.extract_image_from_entry(Entry(summary=summary)) == full
