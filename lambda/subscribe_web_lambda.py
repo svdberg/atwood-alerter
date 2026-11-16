@@ -1,7 +1,6 @@
 import hashlib
 import json
 import os
-import time
 
 import boto3
 from http_response import json_response
@@ -26,15 +25,12 @@ def lambda_handler(event, context):
         subscription_json = json.dumps(body)
         subscription_id = hashlib.sha256(subscription_json.encode()).hexdigest()
 
-        # Set TTL to 30 days from now (in seconds since epoch)
-        ttl_seconds = int(time.time()) + (30 * 24 * 60 * 60)
-
+        # Don't write a "ttl" attribute: it would turn on expiry for this table.
         # Save to DynamoDB
         table.put_item(
             Item={
                 "subscription_id": subscription_id,
                 "subscription": subscription_json,
-                "ttl_seconds": ttl_seconds,
             }
         )
 
