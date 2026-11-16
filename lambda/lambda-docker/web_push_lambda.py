@@ -48,6 +48,8 @@ VAPID_SUB = "mailto:svdberg@me.com"
 
 
 PUSH_TTL_SECONDS = 600
+PUSH_TIMEOUT_SECONDS = 10
+MAX_BODY_CHARS = 4096
 
 
 def build_push_data(msg: dict) -> str:
@@ -89,8 +91,8 @@ def extract_reason(body: Optional[str]) -> Optional[str]:
     if not body or not isinstance(body, str):
         return None
     try:
-        data = json.loads(body)
-    except ValueError:
+        data = json.loads(body[:MAX_BODY_CHARS])
+    except (ValueError, RecursionError):
         return None
     if not isinstance(data, dict):
         return None
@@ -161,17 +163,19 @@ def lambda_handler(event, context):
     for record in event["Records"]:
         msg = json.loads(record["Sns"]["Message"])
         push_data = build_push_data(msg)
-        succeeded = 0
-        candidates: list = []
+        succeeded_hosts: set = set()
+        candidates: list = []  # (subscription_id, host)
 
         # Scan all subscriptions
         response = table.scan()
         for item in response.get("Items", []):
+            host = ""
             try:
                 sub = json.loads(item["subscription"])
 
                 # Extract origin for aud claim
                 endpoint = sub.get("endpoint", "")
+                host = urlparse(endpoint).netloc
                 origin = urlparse(endpoint).scheme + "://" + urlparse(endpoint).netloc
 
                 vapid_claims = {"sub": VAPID_SUB, "aud": origin}
@@ -183,10 +187,11 @@ def lambda_handler(event, context):
                     vapid_claims=vapid_claims,
                     headers=push_headers(),
                     ttl=PUSH_TTL_SECONDS,
+                    timeout=PUSH_TIMEOUT_SECONDS,
                 )
 
                 # Successful push
-                succeeded += 1
+                succeeded_hosts.add(host)
                 put_metric("PushSuccess")
             except WebPushException as ex:
                 resp = getattr(ex, "response", None)
@@ -196,7 +201,7 @@ def lambda_handler(event, context):
                 action, reason = classify_failure(status_code, body)
                 print(
                     f"Push failed for {item['subscription_id']}: "
-                    f"status={status_code} reason={reason or 'none'} "
+                    f"status={status_code} reason={(reason or 'none')[:100]!r} "
                     f"action={action} body={(body or '')[:200]!r}"
                 )
 
@@ -205,20 +210,29 @@ def lambda_handler(event, context):
                 if action == "delete":
                     delete_subscription(item["subscription_id"])
                 elif action == "delete_if_confirmed":
-                    candidates.append(item["subscription_id"])
+                    candidates.append((item["subscription_id"], host))
             except requests.exceptions.RequestException as ex:
+                # str(ex) can contain the endpoint URL/token, so don't log it.
                 print(
                     f"Push request error for {item['subscription_id']}: "
-                    f"{type(ex).__name__}: {ex}"
+                    f"{type(ex).__name__} host={host}"
+                )
+                put_metric("PushFailure")
+            except Exception as ex:
+                print(
+                    f"Unexpected push error for {item.get('subscription_id')}: "
+                    f"{type(ex).__name__}"
                 )
                 put_metric("PushFailure")
 
-        if candidates:
-            if succeeded:
-                for subscription_id in candidates:
-                    delete_subscription(subscription_id)
+        skipped: dict = {}
+        for subscription_id, host in candidates:
+            if host in succeeded_hosts:
+                delete_subscription(subscription_id)
             else:
-                print(
-                    f"Skipping deletion of {len(candidates)} subscriptions: "
-                    "no successful push to confirm config"
-                )
+                skipped[host] = skipped.get(host, 0) + 1
+        for host, count in skipped.items():
+            print(
+                f"Skipping deletion of {count} subscriptions on {host}: "
+                "no successful push to that host to confirm config"
+            )

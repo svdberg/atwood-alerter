@@ -357,3 +357,86 @@ def test_handler_response_none_keeps_subscription(monkeypatch):
     _fail_on(mod, monkeypatch, {"a": WebPushException("boom", response=None)})
     mod.lambda_handler(_event({"title": "T", "url": U}), None)
     assert _ids(table) == {"a", "b", "c"}
+
+
+@mock_aws
+def test_handler_other_host_success_does_not_enable_deletion(monkeypatch, capsys):
+    mod, table = _load(monkeypatch)
+    table.delete_item(Key={"subscription_id": "b"})
+    table.delete_item(Key={"subscription_id": "c"})
+    table.put_item(
+        Item={
+            "subscription_id": "d",
+            "subscription": json.dumps({"endpoint": "https://evil.example/d"}),
+        }
+    )
+    _fail_on(mod, monkeypatch, {"a": _exc(400, VAPID_MISMATCH)})
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    assert _ids(table) == {"a", "d"}
+    assert "PushSubscriptionDeleted" not in mod.metrics
+    assert "Skipping deletion of 1 subscriptions on push.example" in (
+        capsys.readouterr().out
+    )
+
+
+@mock_aws
+def test_extract_reason_deeply_nested_body():
+    from web_push_lambda import extract_reason
+
+    assert extract_reason("[" * 5000) is None
+    # Only the first 4096 characters are parsed.
+    assert extract_reason('{"reason":"R"}' + " " * 5000) == "R"
+    assert extract_reason(" " * 5000 + '{"reason":"R"}') is None
+
+
+@mock_aws
+def test_handler_survives_nested_body(monkeypatch):
+    mod, table = _load(monkeypatch)
+    _fail_on(mod, monkeypatch, {"a": _exc(400, "[" * 5000)})
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    assert _ids(table) == {"a", "b", "c"}
+
+
+@mock_aws
+def test_handler_generic_exception_keeps_and_continues(monkeypatch, capsys):
+    mod, table = _load(monkeypatch)
+    calls = _fail_on(mod, monkeypatch, {"a": RuntimeError("secret-token-xyz")})
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    assert len(calls) == 3
+    assert _ids(table) == {"a", "b", "c"}
+    assert mod.metrics.count("PushFailure") == 1
+    out = capsys.readouterr().out
+    assert "RuntimeError" in out
+    assert "secret-token-xyz" not in out
+
+
+@mock_aws
+def test_request_error_log_omits_token(monkeypatch, capsys):
+    mod, _ = _load(monkeypatch)
+    exc = requests.exceptions.ConnectionError("https://push.example/a?tok=SEKRET")
+    _fail_on(mod, monkeypatch, {"a": exc})
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    out = capsys.readouterr().out
+    assert "SEKRET" not in out
+    assert "ConnectionError" in out and "push.example" in out
+
+
+@mock_aws
+def test_handler_logs_reason_truncated_and_repr(monkeypatch, capsys):
+    mod, _ = _load(monkeypatch)
+    long_reason = "X" * 300
+    _fail_on(mod, monkeypatch, {"a": _exc(500, json.dumps({"reason": long_reason}))})
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    line = next(
+        ln for ln in capsys.readouterr().out.splitlines() if "Push failed" in ln
+    )
+    assert "reason='" + "X" * 100 + "'" in line
+
+
+@mock_aws
+def test_handler_passes_timeout(monkeypatch):
+    mod, _ = _load(monkeypatch)
+    calls = []
+    monkeypatch.setattr(mod, "webpush", lambda **kw: calls.append(kw))
+    mod.lambda_handler(_event({"title": "T", "url": U}), None)
+    assert calls and all(kw["timeout"] == 10 for kw in calls)

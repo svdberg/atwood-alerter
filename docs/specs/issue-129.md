@@ -62,10 +62,12 @@ that returns `(action, reason)`. `action` is one of `"delete"`,
 example a bad SSM value), Apple would return it for **every** subscriber. So
 the handler doesn't delete `"delete_if_confirmed"` candidates straight away. It
 collects them for each SNS record and deletes them after the loop, and only if
-at least one push in that record succeeded. A successful push shows our key and
-JWT work. If nothing succeeded, it logs one line,
-`Skipping deletion of N subscriptions: no successful push to confirm config`,
-and deletes nothing. 404/410 deletions stay immediate, as today.
+at least one push to the **same push-service host** (`urlparse(endpoint).netloc`)
+succeeded in that record. A success on another host doesn't count, so an
+attacker-registered endpoint can't enable deletions on Apple. A successful push
+shows our key and JWT work. For hosts with no success, it logs one line per host,
+`Skipping deletion of N subscriptions on <host>: no successful push to that host
+to confirm config`, and deletes nothing there. 404/410 deletions stay immediate, as today.
 
 ### 3. Logging and metrics
 
