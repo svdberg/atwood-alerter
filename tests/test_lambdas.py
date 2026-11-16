@@ -183,7 +183,10 @@ def test_subscribe_web_lambda_registers_subscription():
     _assert_cors_json(result)
     sub_id = hashlib.sha256(json.dumps(body).encode()).hexdigest()
     table = boto3.resource("dynamodb", region_name="us-east-1").Table("WebPush")
-    assert "Item" in table.get_item(Key={"subscription_id": sub_id})
+    item = table.get_item(Key={"subscription_id": sub_id})["Item"]
+    assert item["subscription"] == json.dumps(body)
+    assert "ttl_seconds" not in item
+    assert "ttl" not in item
 
 
 @mock_aws
