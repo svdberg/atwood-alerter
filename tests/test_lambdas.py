@@ -608,6 +608,9 @@ def _setup_recheck(monkeypatch, entries, sold_by_url, stored=None):
         def __init__(self, text):
             self.text = text
 
+        def raise_for_status(self):
+            pass
+
     def fake_get(url, timeout=None, **kw):
         assert timeout
         calls.append(url)
@@ -621,7 +624,7 @@ def _setup_recheck(monkeypatch, entries, sold_by_url, stored=None):
 
     feed = Feed()
     feed.entries = entries
-    monkeypatch.setattr(mod.feedparser, "parse", lambda url: feed)
+    monkeypatch.setattr(mod, "fetch_feed", lambda: feed)
     monkeypatch.setattr(mod.requests, "get", fake_get)
     monkeypatch.setattr(mod, "_utcnow", lambda: NOW)
     monkeypatch.setattr(mod, "extract_image_from_entry", lambda e: None)
@@ -641,13 +644,16 @@ def test_fetch_sold_status_uses_timeout(monkeypatch):
     class Resp:
         text = SOLD_HTML
 
+        def raise_for_status(self):
+            pass
+
     def fake_get(url, timeout=None):
         seen["timeout"] = timeout
         return Resp()
 
     monkeypatch.setattr(mod.requests, "get", fake_get)
     assert mod.fetch_sold_status("https://x") is True
-    assert seen["timeout"] == mod.REQUEST_TIMEOUT_S
+    assert seen["timeout"] == mod.REQUEST_TIMEOUT
 
 
 @mock_aws
@@ -768,12 +774,15 @@ def test_seed_run_has_no_sold_at_and_no_rechecks(monkeypatch):
     class Resp:
         text = SOLD_HTML
 
+        def raise_for_status(self):
+            pass
+
     class Feed:
         pass
 
     feed = Feed()
     feed.entries = entries
-    monkeypatch.setattr(mod.feedparser, "parse", lambda url: feed)
+    monkeypatch.setattr(mod, "fetch_feed", lambda: feed)
     monkeypatch.setattr(
         mod.requests, "get", lambda url, timeout=None: calls.append(url) or Resp()
     )
@@ -882,3 +891,173 @@ def test_status_recent_releases_empty_and_scan_failure(monkeypatch):
     monkeypatch.setattr(mod.table, "scan", boom)
     result = mod.lambda_handler({}, None)
     assert json.loads(result["body"])["recent_releases"] == []
+
+
+# --- HTTP timeouts and failure handling (#131) ---
+
+import requests  # noqa: E402
+
+RSS = (
+    b'<?xml version="1.0"?><rss version="2.0"><channel><title>b</title>'
+    b"<item><title>P</title><link>https://blog.test/1</link>"
+    b"<guid>id1</guid><pubDate>Fri, 13 Nov 2026 11:00:00 +0000</pubDate>"
+    b"</item></channel></rss>"
+)
+
+
+class _Ctx:
+    def __init__(self, ms):
+        self.ms = ms
+
+    def get_remaining_time_in_millis(self):
+        return self.ms
+
+
+class _Resp:
+    def __init__(self, content=b"", text="", status=200):
+        self.content = content
+        self.text = text
+        self.status = status
+
+    def raise_for_status(self):
+        if self.status >= 400:
+            raise requests.HTTPError(f"{self.status} error")
+
+
+def _spy_handler_env(monkeypatch, feed_result, page_result=OPEN_HTML):
+    """Handler env with requests.get faked: feed URL and post pages."""
+    mod, posts = _scraper_env()
+    gets = []
+
+    def fake_get(url, timeout=None, **kw):
+        gets.append((url, timeout))
+        result = feed_result if url == mod.BLOG_FEED_URL else page_result
+        if isinstance(result, Exception):
+            raise result
+        if isinstance(result, _Resp):
+            return result
+        if url == mod.BLOG_FEED_URL:
+            return _Resp(content=result)
+        return _Resp(text=result)
+
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+    monkeypatch.setattr(mod, "_utcnow", lambda: NOW)
+    saved, notified, meta = [], [], []
+    monkeypatch.setattr(mod, "save_post", lambda p: saved.append(p))
+    monkeypatch.setattr(mod, "notify_subscribers", lambda p: notified.append(p))
+    monkeypatch.setattr(mod, "save_metadata", lambda p: meta.append(p))
+    return mod, posts, gets, saved, notified, meta
+
+
+@mock_aws
+def test_http_get_uses_timeout_tuple_and_raises_for_status(monkeypatch):
+    mod, _ = _scraper_env()
+    assert mod.REQUEST_TIMEOUT == (3, 10)
+    seen = {}
+
+    class R:
+        def raise_for_status(self):
+            seen["raised"] = True
+
+    def fake_get(url, timeout=None):
+        seen["timeout"] = timeout
+        return R()
+
+    monkeypatch.setattr(mod.requests, "get", fake_get)
+    assert isinstance(mod.http_get("https://x"), R)
+    assert seen == {"timeout": (3, 10), "raised": True}
+
+
+@mock_aws
+def test_feed_fetch_parses_response_content(monkeypatch):
+    mod, _ = _scraper_env()
+    monkeypatch.setattr(mod.requests, "get", lambda url, timeout=None: _Resp(RSS))
+    parsed = []
+    real = mod.feedparser.parse
+    monkeypatch.setattr(
+        mod.feedparser, "parse", lambda arg: parsed.append(arg) or real(arg)
+    )
+    feed = mod.fetch_feed()
+    assert parsed == [RSS]
+    assert isinstance(parsed[0], bytes)
+    assert feed.entries[0]["id"] == "id1"
+
+
+@mock_aws
+@pytest.mark.parametrize(
+    "failure",
+    [
+        requests.Timeout("slow"),
+        requests.ConnectionError("down"),
+        _Resp(status=503),
+    ],
+    ids=["timeout", "connection", "http503"],
+)
+def test_feed_failure_skips_everything(monkeypatch, capsys, failure):
+    mod, posts, gets, saved, notified, meta = _spy_handler_env(monkeypatch, failure)
+    posts.put_item(Item={"post_id": "__meta__", "last_run_time": "x"})
+    mod.lambda_handler({}, None)
+    assert "Feed fetch failed" in capsys.readouterr().out
+    assert saved == [] and notified == [] and meta == []
+    assert [u for u, _ in gets] == [mod.BLOG_FEED_URL]
+    assert posts.get_item(Key={"post_id": "__meta__"})["Item"] == {
+        "post_id": "__meta__",
+        "last_run_time": "x",
+    }
+
+
+def _make_table_nonempty(posts):
+    posts.put_item(Item={"post_id": "other", "title": "o", "url": "u"})
+
+
+@mock_aws
+def test_newest_sold_check_timeout_still_notifies(monkeypatch, capsys):
+    mod, posts, gets, saved, notified, meta = _spy_handler_env(
+        monkeypatch, RSS, requests.Timeout("slow page")
+    )
+    _make_table_nonempty(posts)
+    mod.lambda_handler({}, None)
+    assert "Sold check failed for id1" in capsys.readouterr().out
+    assert [p["sold"] for p in saved] == [False]
+    assert len(notified) == 1 and notified[0]["sold"] is False
+    assert len(meta) == 1
+
+
+@mock_aws
+def test_low_time_budget_skips_page_fetches(monkeypatch, capsys):
+    mod, posts, gets, saved, notified, meta = _spy_handler_env(monkeypatch, RSS)
+    _make_table_nonempty(posts)
+    mod.lambda_handler({}, _Ctx(17_000))
+    assert [u for u, _ in gets] == [mod.BLOG_FEED_URL]
+    assert "low time budget" in capsys.readouterr().out
+    assert [p["sold"] for p in saved] == [False]
+    assert len(notified) == 1 and notified[0]["sold"] is False
+    assert len(meta) == 1
+
+
+@mock_aws
+def test_seed_run_low_time_budget_skips_page_fetches(monkeypatch):
+    mod, posts, gets, saved, notified, meta = _spy_handler_env(monkeypatch, RSS)
+    mod.lambda_handler({}, _Ctx(17_000))
+    assert [u for u, _ in gets] == [mod.BLOG_FEED_URL]
+    assert [p["sold"] for p in saved] == [False]
+    assert notified == []
+
+
+@mock_aws
+@pytest.mark.parametrize("context", [None, _Ctx(60_000)], ids=["none", "60s"])
+def test_all_requests_use_timeout(monkeypatch, context):
+    entries = [_entry(n, timedelta(hours=n)) for n in range(1, 6)]
+    mod, posts, calls = _setup_recheck(monkeypatch, entries, {})
+    recorded = []
+    real_get = mod.requests.get
+
+    def spy(url, timeout=None, **kw):
+        recorded.append(timeout)
+        return real_get(url, timeout=timeout, **kw)
+
+    monkeypatch.setattr(mod.requests, "get", spy)
+    mod.lambda_handler({}, context)
+    # newest check + MAX_RECHECKS_PER_RUN rechecks
+    assert len(recorded) == 1 + mod.MAX_RECHECKS_PER_RUN
+    assert all(t == mod.REQUEST_TIMEOUT for t in recorded)

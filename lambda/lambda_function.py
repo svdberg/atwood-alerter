@@ -33,7 +33,10 @@ SOLD_PATTERNS = [
     r"these\s+are\s+sold\s+out",
     r"thank\s+you",
 ]
-REQUEST_TIMEOUT_S = 10
+# (connect, read) timeouts in seconds
+REQUEST_TIMEOUT = (3, 10)
+# Time kept free for DynamoDB and SNS after the last fetch
+FETCH_RESERVE_S = 5
 RECHECK_WINDOW = timedelta(days=7)
 MAX_RECHECKS_PER_RUN = 3
 
@@ -45,8 +48,29 @@ def is_sold(text: str) -> bool:
     return any(re.search(pat, combined) for pat in SOLD_PATTERNS)
 
 
+def http_get(url: str) -> requests.Response:
+    """GET with timeouts; raises requests.RequestException on any failure."""
+    response = requests.get(url, timeout=REQUEST_TIMEOUT)
+    response.raise_for_status()
+    return response
+
+
+def fetch_feed():
+    response = http_get(BLOG_FEED_URL)
+    return feedparser.parse(response.content)
+
+
+def _has_time_for_fetch(context) -> bool:
+    """True if a worst-case fetch still leaves time for DynamoDB and SNS."""
+    get_remaining = getattr(context, "get_remaining_time_in_millis", None)
+    if get_remaining is None:
+        return True
+    needed_s = sum(REQUEST_TIMEOUT) + FETCH_RESERVE_S
+    return bool(get_remaining() / 1000 >= needed_s)
+
+
 def fetch_sold_status(url: str) -> bool:
-    response = requests.get(url, timeout=REQUEST_TIMEOUT_S)
+    response = http_get(url)
     soup = BeautifulSoup(response.text, "html.parser")
     post_body = soup.find("div", class_="post-body")
     post_text = post_body.get_text(separator="\n").strip() if post_body else ""
@@ -63,7 +87,11 @@ notify_topic_arn = os.environ["NOTIFY_TOPIC_ARN"]
 
 
 def lambda_handler(event, context):
-    feed = feedparser.parse(BLOG_FEED_URL)
+    try:
+        feed = fetch_feed()
+    except requests.RequestException as e:
+        print(f"Feed fetch failed: {e}")
+        return
     posts = feed.entries
 
     if not posts:
@@ -77,7 +105,15 @@ def lambda_handler(event, context):
         print("Post has no ID. Skipping.")
         return
     post_url = newest.link
-    sold = fetch_sold_status(post_url)
+    if _has_time_for_fetch(context):
+        try:
+            sold = fetch_sold_status(post_url)
+        except Exception as e:
+            print(f"Sold check failed for {post_id}: {e}")
+            sold = False
+    else:
+        print(f"Skipping sold check for {post_id}: low time budget")
+        sold = False
 
     post = {
         "post_id": post_id,
@@ -97,10 +133,13 @@ def lambda_handler(event, context):
 
             # Get post content for sold status check
             entry_url = entry.link
-            try:
-                sold = fetch_sold_status(entry_url)
-            except Exception as e:
-                print(f"Failed to fetch content for {entry_id}: {e}")
+            if _has_time_for_fetch(context):
+                try:
+                    sold = fetch_sold_status(entry_url)
+                except Exception as e:
+                    print(f"Failed to fetch content for {entry_id}: {e}")
+                    sold = False
+            else:
                 sold = False
 
             seed_post = {
@@ -123,11 +162,13 @@ def lambda_handler(event, context):
     else:
         print("No new post.")
 
-    recheck_recent_posts(posts, post_id, sold, _utcnow())
+    recheck_recent_posts(posts, post_id, sold, _utcnow(), context)
     save_metadata(post)
 
 
-def recheck_recent_posts(entries, newest_id: str, newest_sold: bool, now: datetime):
+def recheck_recent_posts(
+    entries, newest_id: str, newest_sold: bool, now: datetime, context=None
+):
     """Record sold_at for recent unsold posts that have now sold out.
 
     Never raises: a failure here must not stop save_metadata.
@@ -164,6 +205,9 @@ def recheck_recent_posts(entries, newest_id: str, newest_sold: bool, now: dateti
             else:
                 if fetches >= MAX_RECHECKS_PER_RUN:
                     continue
+                if not _has_time_for_fetch(context):
+                    print("Re-check stopped: low time budget")
+                    break
                 fetches += 1
                 try:
                     now_sold = fetch_sold_status(entry.get("link", ""))
