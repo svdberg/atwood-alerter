@@ -250,7 +250,7 @@ jobs:
       
       - name: Create incident issue
         if: env.ISSUES_FOUND == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const title = '🚨 Service Health Alert - Issues Detected';
@@ -303,7 +303,7 @@ jobs:
       
       - name: Close resolved incidents
         if: env.ISSUES_FOUND == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             // Find open incident issues
