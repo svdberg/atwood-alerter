@@ -41,7 +41,7 @@ jobs:
       # Refuse to run branch code unless whoever triggered the failing run has
       # write access (blocks fork PRs and outside contributors).
       - name: Check triggering actor has write access
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const users = new Set([
